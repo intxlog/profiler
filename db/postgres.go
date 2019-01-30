@@ -38,12 +38,7 @@ func (p PostgresConn) GetConnectionToDatabase(dbName string) (*sql.DB, error) {
 
 //Connect to default database
 func (p PostgresConn) GetConnection() (*sql.DB, error) {
-	return sql.Open(`postgres`, fmt.Sprintf(`user=%s password=%s host=%s port=%d dbname=%s`,
-		p.user,
-		p.password,
-		p.host,
-		p.port,
-		p.defaultDB))
+	return p.GetConnectionToDatabase(p.defaultDB)
 }
 
 func (p PostgresConn) CheckAndCreateDB(dbName string) error {
