@@ -12,8 +12,8 @@ func main() {
 }
 
 func test() {
-	d := db.NewPostgresConn("dev", "dev", "localhost", 5432, "itms")
-	p := profiler.New(d, "itms")
+	d := db.NewPostgresConn("dev", "dev", "localhost", 5432, "test")
+	p := profiler.New(d, "test")
 	err := p.ProfileTables([]string{"users"})
 	if err != nil {
 		log.Fatal(err)

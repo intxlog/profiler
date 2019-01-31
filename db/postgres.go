@@ -28,7 +28,7 @@ func NewPostgresConn(user string, password string, host string, port int, defaul
 
 //Connect to specified database
 func (p PostgresConn) GetConnectionToDatabase(dbName string) (*sql.DB, error) {
-	return sql.Open(`postgres`, fmt.Sprintf(`user=%s password=%s host=%s port=%d dbname=%s`,
+	return sql.Open(`postgres`, fmt.Sprintf(`user=%s password=%s host=%s port=%d dbname=%s sslmode=disable`,
 		p.user,
 		p.password,
 		p.host,
@@ -47,11 +47,7 @@ func (p PostgresConn) CheckAndCreateDB(dbName string) error {
 		return err
 	}
 
-	exists, err := p.dbExists(dbName)
-	if err != nil {
-		return err
-	}
-
+	exists, _ := p.dbExists(dbName)
 	//if db exists then just return nil we are done
 	if exists {
 		return nil
