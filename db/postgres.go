@@ -8,32 +8,40 @@ import (
 )
 
 type PostgresConn struct {
-	user      string
-	password  string
-	host      string
-	port      int
-	defaultDB string //required for create db call
+	user              string
+	password          string
+	host              string
+	port              int
+	defaultDB         string //required for create db call
+	additionalOptions map[string]string
 }
 
 //Creates a new postgres connection object
-func NewPostgresConn(user string, password string, host string, port int, defaultDB string) PostgresConn {
+func NewPostgresConn(user string, password string, host string, port int, defaultDB string, additionalOptions map[string]string) PostgresConn {
 	return PostgresConn{
-		user:      user,
-		password:  password,
-		host:      host,
-		port:      port,
-		defaultDB: defaultDB,
+		user:              user,
+		password:          password,
+		host:              host,
+		port:              port,
+		defaultDB:         defaultDB,
+		additionalOptions: additionalOptions,
 	}
 }
 
 //Connect to specified database
 func (p PostgresConn) GetConnectionToDatabase(dbName string) (*sql.DB, error) {
-	return sql.Open(`postgres`, fmt.Sprintf(`user=%s password=%s host=%s port=%d dbname=%s sslmode=disable`,
+	connString := fmt.Sprintf(`user=%s password=%s host=%s port=%d dbname=%s`,
 		p.user,
 		p.password,
 		p.host,
 		p.port,
-		dbName))
+		dbName)
+
+	for key, val := range p.additionalOptions {
+		connString = fmt.Sprintf(`%s %s=%s`, connString, key, val)
+	}
+
+	return sql.Open(`postgres`, connString)
 }
 
 //Connect to default database
