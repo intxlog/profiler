@@ -54,6 +54,7 @@ func (p PostgresConn) CheckAndCreateDB(dbName string) error {
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	exists, _ := p.dbExists(dbName)
 	//if db exists then just return nil we are done
@@ -66,11 +67,44 @@ func (p PostgresConn) CheckAndCreateDB(dbName string) error {
 	return err
 }
 
+func (p PostgresConn) GetQuerySelectSingle(tableName string) string {
+	return fmt.Sprintf(`select * from %s limit 1`, tableName)
+}
+
+func (p PostgresConn) DoesTableExist(dbName string, tableName string) (bool, error) {
+	conn, err := p.GetConnectionToDatabase(dbName)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+
+	query := fmt.Sprintf(`select to_regclass('%s')`, tableName)
+	row := conn.QueryRow(query)
+
+	var name string
+	err = row.Scan(&name)
+	if err != nil {
+		return false, err
+	}
+
+	return name == tableName, nil
+}
+
+func (p PostgresConn) GetIDTypeString() string {
+	return `serial`
+}
+
+func (p PostgresConn) GetDateTypeString() string {
+	return `timestamp with time zone`
+}
+
 func (p PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return false, err
 	}
+	defer conn.Close()
+
 	row := conn.QueryRow(
 		`SELECT datname FROM pg_catalog.pg_database WHERE datname = $1;`,
 		dbName,
