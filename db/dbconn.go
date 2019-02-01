@@ -19,11 +19,4 @@ type DBConn interface {
 
 	//Checks if a table exists
 	DoesTableExist(dbName string, tableName string) (bool, error)
-
-	//Returns a string that is the SQL for the primary id columns in a table
-	//i.e. SERIAL
-	GetIDTypeString() string
-
-	//Returns a string that is the SQL for a date column on a table
-	GetDateTypeString() string
 }

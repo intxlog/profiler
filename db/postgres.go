@@ -97,14 +97,6 @@ func (p PostgresConn) DoesTableExist(dbName string, tableName string) (bool, err
 	return name == tableName, nil
 }
 
-func (p PostgresConn) GetIDTypeString() string {
-	return `serial`
-}
-
-func (p PostgresConn) GetDateTypeString() string {
-	return `timestamp with time zone`
-}
-
 func (p PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {

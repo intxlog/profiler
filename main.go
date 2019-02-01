@@ -13,7 +13,7 @@ func main() {
 
 func test() {
 	d := db.NewPostgresConn("dev", "dev", "localhost", 5432, "test", map[string]string{`sslmode`: `disable`})
-	p := profiler.New(d, "test")
+	p := profiler.NewProfiler(d, "test")
 	err := p.ProfileTables([]string{"users"})
 
 	if err != nil {
