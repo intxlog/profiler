@@ -56,16 +56,9 @@ func (p *Profiler) ProfileTable(tableName string) error {
 		return err
 	}
 
-	conn, err := p.dbConnData.GetConnectionToDatabase(p.targetDB)
-	if err != nil {
-		return err
-	}
-
 	//TODO - limit this correctly to one row for this first query
 	//will require a new method in dbconn so it is agnostic to db
-	rows, err := conn.Query(
-		p.dbConnData.GetQuerySelectSingle(tableName),
-	)
+	rows, err := p.dbConnData.GetSelectSingle(p.targetDB, tableName)
 	if err != nil {
 		return err
 	}

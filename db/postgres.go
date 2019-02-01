@@ -67,8 +67,15 @@ func (p PostgresConn) CheckAndCreateDB(dbName string) error {
 	return err
 }
 
-func (p PostgresConn) GetQuerySelectSingle(tableName string) string {
-	return fmt.Sprintf(`select * from %s limit 1`, tableName)
+func (p PostgresConn) GetSelectSingle(dbName string, tableName string) (*sql.Rows, error) {
+	qry := fmt.Sprintf(`select * from %s limit 1`, tableName)
+	conn, err := p.GetConnectionToDatabase(dbName)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return conn.Query(qry)
 }
 
 func (p PostgresConn) DoesTableExist(dbName string, tableName string) (bool, error) {
