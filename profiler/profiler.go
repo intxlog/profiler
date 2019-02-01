@@ -22,6 +22,19 @@ func NewProfiler(dbConnData db.DBConn, targetDB string) *Profiler {
 	}
 }
 
+//TODO - this should call a function on the profile store instead of changing the props directly
+//Change the connection the profile store is using
+func (p *Profiler) OverrideProfileStoreConnection(dbConnData db.DBConn) {
+	p.profileStore.dbConnData = dbConnData
+	p.profileStore.checkedForProfileDB = false
+}
+
+//Overrides the profile store's database
+func (p *Profiler) OverrideProfileStoreDatabase(dbName string) {
+	p.profileStore.OverrideProfileDB(dbName)
+}
+
+//Run profiles on all provided tables and store
 func (p *Profiler) ProfileTables(tableNames []string) error {
 
 	for _, tableName := range tableNames {
@@ -33,10 +46,9 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 	return nil
 }
 
+//Profiles the provided table
 func (p *Profiler) ProfileTable(tableName string) error {
 
-	//TODO - limit this correctly to one row for this first query
-	//will require a new method in dbconn so it is agnostic to db
 	rows, err := p.dbConnData.GetSelectSingle(p.targetDB, tableName)
 	if err != nil {
 		return err
