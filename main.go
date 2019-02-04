@@ -12,8 +12,13 @@ func main() {
 }
 
 func test() {
-	d := db.NewPostgresConn("dev", "dev", "localhost", 5432, "test", map[string]string{`sslmode`: `disable`})
-	p := profiler.NewProfiler(d, "test")
+	connStr := `user=dev password=dev host=localhost port=5432 dbname=test`
+	t := db.NewPostgresConn(connStr)
+
+	pConnStr := `user=dev password=dev host=localhost port=5432 dbname=dbprofiledata`
+	pConn := db.NewPostgresConn(pConnStr)
+
+	p := profiler.NewProfiler(t, pConn)
 	err := p.ProfileTables([]string{"users"})
 
 	if err != nil {

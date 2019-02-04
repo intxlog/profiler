@@ -8,30 +8,18 @@ import (
 )
 
 type Profiler struct {
-	dbConnData   db.DBConn
-	targetDB     string
-	profileStore *ProfileStore
+	targetDBConn  db.DBConn
+	profileDBConn db.DBConn
+	profileStore  *ProfileStore
 }
 
 //Returns a new Profiler
-func NewProfiler(dbConnData db.DBConn, targetDB string) *Profiler {
+func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn) *Profiler {
 	return &Profiler{
-		dbConnData:   dbConnData,
-		targetDB:     targetDB,
-		profileStore: NewProfileStore(dbConnData),
+		targetDBConn:  targetDBConn,
+		profileDBConn: profileDBConn,
+		profileStore:  NewProfileStore(profileDBConn),
 	}
-}
-
-//TODO - this should call a function on the profile store instead of changing the props directly
-//Change the connection the profile store is using
-func (p *Profiler) OverrideProfileStoreConnection(dbConnData db.DBConn) {
-	p.profileStore.dbConnData = dbConnData
-	p.profileStore.checkedForProfileDB = false
-}
-
-//Overrides the profile store's database
-func (p *Profiler) OverrideProfileStoreDatabase(dbName string) {
-	p.profileStore.OverrideProfileDB(dbName)
 }
 
 //Run profiles on all provided tables and store
@@ -49,7 +37,7 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 //Profiles the provided table
 func (p *Profiler) ProfileTable(tableName string) error {
 
-	rows, err := p.dbConnData.GetSelectSingle(p.targetDB, tableName)
+	rows, err := p.targetDBConn.GetSelectSingle(tableName)
 	if err != nil {
 		return err
 	}
