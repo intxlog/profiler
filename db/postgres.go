@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -33,7 +34,6 @@ func (p PostgresConn) GetConnection() (*sql.DB, error) {
 func (p PostgresConn) GetSelectSingle(tableName string) (*sql.Rows, error) {
 	qry := fmt.Sprintf(`select * from %s limit 1`, tableName)
 	conn, err := p.GetConnection()
-	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,6 @@ func (p PostgresConn) DoesTableExist(tableName string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer conn.Close()
 
 	query := fmt.Sprintf(`select to_regclass('%s')`, tableName)
 	row := conn.QueryRow(query)
@@ -60,12 +59,77 @@ func (p PostgresConn) DoesTableExist(tableName string) (bool, error) {
 	return name == tableName, nil
 }
 
+func (p PostgresConn) CreateTable(tableName string, columns []DBColumnDefinition) error {
+	conn, err := p.GetConnection()
+	if err != nil {
+		return err
+	}
+
+	columnItems := []string{}
+	for _, col := range columns {
+		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, col.ColumnType))
+	}
+
+	columnQuery := strings.Join(columnItems, `,`)
+
+	query := `create table %s (
+			id serial primary key,
+			%s
+		);`
+
+	query = fmt.Sprintf(query, tableName, columnQuery)
+
+	_, err = conn.Exec(query)
+	return err
+}
+
+func (p PostgresConn) CreateTableIfNotExists(tableName string, columns []DBColumnDefinition) error {
+	if ok, err := p.DoesTableExist(tableName); ok && err == nil {
+		return nil
+	}
+	return p.CreateTable(tableName, columns)
+}
+
+func (p PostgresConn) DoesTableColumnExist(tableName string, columnName string) (bool, error) {
+	conn, err := p.GetConnection()
+	if err != nil {
+		return false, err
+	}
+
+	query := fmt.Sprintf(`SELECT column_name 
+		FROM information_schema.columns 
+		WHERE table_name ilike '%s' and column_name ilike '%s'`, tableName, columnName)
+
+	row := conn.QueryRow(query)
+
+	var name string
+	err = row.Scan(&name)
+	if err != nil {
+		return false, err
+	}
+
+	return name == columnName, nil
+}
+
+func (p PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition) error {
+	conn, err := p.GetConnection()
+	if err != nil {
+		return err
+	}
+
+	query := `alter table %s add column %s %s;`
+
+	query = fmt.Sprintf(query, tableName, column.ColumnName, column.ColumnType)
+
+	_, err = conn.Exec(query)
+	return err
+}
+
 func (p PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return false, err
 	}
-	defer conn.Close()
 
 	row := conn.QueryRow(
 		`SELECT datname FROM pg_catalog.pg_database WHERE datname = $1;`,
