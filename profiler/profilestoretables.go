@@ -1,5 +1,7 @@
 package profiler
 
+import "time"
+
 type TableColumnName struct {
 	ID                int    `db:"id"`
 	TableNameID       int    `db:"table_name_id"`
@@ -21,4 +23,9 @@ type TableProfile struct {
 	ID            int `db:"id"`
 	TableNameID   int `db:"table_name_id"`
 	TableRowCount int `db:"table_row_count"`
+}
+
+type ProfileRecord struct {
+	ID          int       `db:"id"`
+	ProfileDate time.Time `db:"profile_date"`
 }
