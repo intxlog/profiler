@@ -111,7 +111,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 	profileTable := p.getColumnProfileTableName(columnType)
 
 	columnsMap := map[string]string{
-		TABLE_COLUMN_NAME_ID: TABLE_COLUMN_NAME_ID_TYPE
+		TABLE_COLUMN_NAME_ID: TABLE_COLUMN_NAME_ID_TYPE,
 	}
 	for _, data := range profileResults {
 		columnsMap[data.name] = data.dataType
@@ -145,7 +145,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 	}
 
 	columnData := map[string]interface{}{
-		TABLE_COLUMN_NAME_ID: columnNamesID
+		TABLE_COLUMN_NAME_ID: columnNamesID,
 	}
 	for _, data := range profileResults {
 		columnData[data.name] = data.data
