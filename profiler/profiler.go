@@ -53,6 +53,8 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 		return err
 	}
 
+	rows.Close()
+
 	return p.handleProfileTableColumns(tableName, profileID, columnsData)
 }
 
@@ -113,6 +115,7 @@ func (p *Profiler) handleProfileTableColumn(tableName string, profileID int, col
 	if rows.Next() {
 		rows.Scan(profileValuePointers...)
 	}
+	rows.Close()
 
 	profileResults := []ColumnProfileData{}
 	for idx, val := range profileValues {

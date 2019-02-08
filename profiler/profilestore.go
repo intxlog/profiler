@@ -189,6 +189,7 @@ func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string
 	if err != nil {
 		return 0, err
 	}
+	defer rows.Close()
 
 	var id int
 	if rows.Next() {
