@@ -125,6 +125,81 @@ func (p PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition
 	return err
 }
 
+func (p PostgresConn) ProfilesByType(columnType string) map[string]string {
+	profileColumns := map[string]string{}
+	switch columnType {
+	case `INT4`:
+		profileColumns["maximum"] = "max(%s)"
+		profileColumns["minimum"] = "min(%s)"
+		profileColumns["avgerage"] = "avg(%s)"
+		break
+	case `VARCHAR`:
+		profileColumns["max_length"] = "max(length(%s))"
+		profileColumns["avg_length"] = "avg(length(%s))"
+		break
+	}
+
+	return profileColumns
+}
+
+func (p PostgresConn) InsertRowAndReturnID(tableName string, values map[string]interface{}) int {
+
+	insertColumns := []string{}
+	insertValuePlaceholders := []string{}
+	insertValues := []interface{}{}
+	idx := 1
+	for col, val := range values {
+		insertColumns = append(insertColumns, col)
+		insertValuePlaceholders = append(insertValuePlaceholders, fmt.Sprintf(`$%d`, idx))
+		insertValues = append(insertValues, val)
+		idx = idx + 1
+	}
+
+	insertQuery := fmt.Sprintf(`insert into %s (%s) values (%s) returning id`,
+		tableName,
+		strings.Join(insertColumns, `,`),
+		strings.Join(insertValuePlaceholders, `,`),
+	)
+
+	conn, err := p.GetConnection()
+	if err != nil {
+		panic(err)
+	}
+
+	row := conn.QueryRow(insertQuery, insertValues...)
+	var newID int
+	err = row.Scan(&newID)
+	if err != nil {
+		panic(err)
+	}
+
+	return newID
+}
+
+func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
+
+	whereClauses := []string{}
+	whereValues := []interface{}{}
+	idx := 1
+	for col, val := range wheres {
+		whereClauses = append(whereClauses, fmt.Sprintf(`%s=$%d`, col, idx))
+		whereValues = append(whereValues, val)
+		idx = idx + 1
+	}
+
+	query := fmt.Sprintf(`select * from %s where %s`,
+		tableName,
+		strings.Join(whereClauses, `,`),
+	)
+
+	conn, err := p.GetConnection()
+	if err != nil {
+		panic(err)
+	}
+
+	return conn.Query(query, whereValues...)
+}
+
 func (p PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {

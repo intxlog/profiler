@@ -24,6 +24,15 @@ type DBConn interface {
 
 	//Adds a table column to an existing table
 	AddTableColumn(tableName string, column DBColumnDefinition) error
+
+	//Returns a map of column name to sql query string for a sprintf to profile
+	ProfilesByType(columnType string) map[string]string
+
+	//Inserts a row into the table and returns the id of the new row
+	InsertRowAndReturnID(tableName string, values map[string]interface{}) int
+
+	//Query table with provided where values
+	GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error)
 }
 
 type DBColumnDefinition struct {

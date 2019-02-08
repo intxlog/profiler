@@ -3,6 +3,7 @@ package profiler
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"bitbucket.org/intxlog/profiler/db"
 )
@@ -61,7 +62,7 @@ func (p *Profiler) handleProfileTableColumns(tableName string, columnsData []*sq
 }
 
 func (p *Profiler) handleProfileTableColumn(tableName string, columnData *sql.ColumnType) error {
-	fmt.Printf("Column name %s column type %s\n", columnData.Name(), columnData.DatabaseTypeName())
+	fmt.Printf("Column name %s db column type %s scan type %s\n", columnData.Name(), columnData.DatabaseTypeName(), columnData.ScanType())
 	len, ok := columnData.Length()
 	if ok {
 		fmt.Printf("column length %v\n", len)
@@ -70,6 +71,30 @@ func (p *Profiler) handleProfileTableColumn(tableName string, columnData *sql.Co
 	prec, scale, ok := columnData.DecimalSize()
 	if ok {
 		fmt.Printf("column decimal size %v %v\n", prec, scale)
+	}
+
+	profileSelects := []string{}
+	profiles := p.targetDBConn.ProfilesByType(columnData.DatabaseTypeName())
+	for col, pro := range profiles {
+		profileSelects = append(profileSelects, fmt.Sprintf(`%s as %s`, fmt.Sprintf(pro, columnData.Name()), col))
+	}
+
+	profileSelectStr := strings.Join(profileSelects, ",")
+
+	query := fmt.Sprintf(`select %s from %s`, profileSelectStr, tableName)
+
+	db, _ := p.targetDBConn.GetConnection()
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return err
+	}
+
+	//TODO - loop the columns we have back, store based on the primary column's data type into that table.
+	//Make sure that the columns exist on that data type profile table
+	columnsData, err := rows.ColumnTypes()
+	if err != nil {
+		return err
 	}
 
 	return nil

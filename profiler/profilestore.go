@@ -97,3 +97,37 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 	return nil
 
 }
+
+func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnName string, columnDataType string) error {
+
+	return nil
+}
+
+func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
+	return p.getOrInsertTableRowID(TABLE_NAMES, map[string]interface{}{
+		"table_name": tableName,
+	})
+}
+
+func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, error) {
+	return p.getOrInsertTableRowID(TABLE_COLUMN_TYPES, map[string]interface{}{
+		"table_column_type": columnDataType,
+	})
+}
+
+func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
+	rows, err := p.dbConn.GetRows(tableName, values)
+	if err != nil {
+		return 0, err
+	}
+
+	var id int
+	if rows.Next() {
+		err = rows.Scan(&id)
+		return id, err
+	}
+
+	id = p.dbConn.InsertRowAndReturnID(tableName, values)
+
+	return id, nil
+}
