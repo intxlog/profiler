@@ -46,7 +46,7 @@ func (p PostgresConn) DoesTableExist(tableName string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
+	tableName = strings.ToLower(tableName)
 	query := fmt.Sprintf(`select to_regclass('%s')`, tableName)
 	row := conn.QueryRow(query)
 
@@ -131,7 +131,7 @@ func (p PostgresConn) ProfilesByType(columnType string) map[string]string {
 	case `INT4`:
 		profileColumns["maximum"] = "max(%s)"
 		profileColumns["minimum"] = "min(%s)"
-		profileColumns["avgerage"] = "avg(%s)"
+		profileColumns["average"] = "avg(%s)"
 		break
 	case `VARCHAR`:
 		profileColumns["max_length"] = "max(length(%s))"
@@ -176,8 +176,7 @@ func (p PostgresConn) InsertRowAndReturnID(tableName string, values map[string]i
 	return newID
 }
 
-func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
-
+func (p PostgresConn) GetRowsSelect(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error) {
 	whereClauses := []string{}
 	whereValues := []interface{}{}
 	idx := 1
@@ -187,9 +186,10 @@ func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (
 		idx = idx + 1
 	}
 
-	query := fmt.Sprintf(`select * from %s where %s`,
+	query := fmt.Sprintf(`select %s from %s where %s`,
+		strings.Join(selects, `,`),
 		tableName,
-		strings.Join(whereClauses, `,`),
+		strings.Join(whereClauses, ` AND `),
 	)
 
 	conn, err := p.GetConnection()
@@ -198,6 +198,10 @@ func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (
 	}
 
 	return conn.Query(query, whereValues...)
+}
+
+func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
+	return p.GetRowsSelect(tableName, []string{`*`}, wheres)
 }
 
 func (p PostgresConn) dbExists(dbName string) (bool, error) {

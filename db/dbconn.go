@@ -33,6 +33,8 @@ type DBConn interface {
 
 	//Query table with provided where values
 	GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error)
+
+	GetRowsSelect(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error)
 }
 
 type DBColumnDefinition struct {

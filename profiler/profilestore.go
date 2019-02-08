@@ -1,6 +1,11 @@
 package profiler
 
-import "bitbucket.org/intxlog/profiler/db"
+import (
+	"fmt"
+	"time"
+
+	"bitbucket.org/intxlog/profiler/db"
+)
 
 type ProfileStore struct {
 	dbConn      db.DBConn
@@ -13,6 +18,8 @@ const TABLE_COLUMN_TYPES = `table_column_types`
 const TABLE_PROFILES = `table_profiles`
 const TABLE_COLUMN_NAMES = `table_column_names`
 const TABLE_COLUMN_PROFILE_PREFIX = `table_column_profiles_`
+const TABLE_COLUMN_NAME_ID = `table_column_name_id`
+const TABLE_COLUMN_NAME_ID_TYPE = `int`
 
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
 	p := &ProfileStore{
@@ -98,9 +105,71 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 
 }
 
-func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnName string, columnDataType string) error {
+//TODO - make this function not horrible
+func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType string, profileID int, profileResults []ColumnProfileData) error {
+
+	profileTable := p.getColumnProfileTableName(columnType)
+
+	columnsMap := map[string]string{
+		TABLE_COLUMN_NAME_ID: TABLE_COLUMN_NAME_ID_TYPE
+	}
+	for _, data := range profileResults {
+		columnsMap[data.name] = data.dataType
+	}
+
+	//error here just means does not exist
+	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
+
+	if !tableExists {
+		err := p.dbConn.CreateTable(profileTable, db.ConvertMapToColumnDefinitions(columnsMap))
+		if err != nil {
+			return err
+		}
+	} else {
+		//TODO - refactor this into a function call
+		//Table exists so just make sure each column exists
+		for _, data := range profileResults {
+			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, data.name)
+
+			//if column does not exist then create it
+			if !columnExists {
+				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
+					ColumnName: data.name,
+					ColumnType: data.dataType,
+				})
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	columnData := map[string]interface{}{
+		TABLE_COLUMN_NAME_ID: columnNamesID
+	}
+	for _, data := range profileResults {
+		columnData[data.name] = data.data
+	}
+
+	//At this point the table and columns exist, so insert data
+	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
 
 	return nil
+}
+
+//Creates a new profile entry and returns the profile id
+func (p *ProfileStore) NewProfile() (int, error) {
+	return p.getOrInsertTableRowID(PROFILE_RECORDS, map[string]interface{}{
+		"profile_date": time.Now(),
+	})
+}
+
+func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnTypeID int, columnName string) (int, error) {
+	return p.getOrInsertTableRowID(TABLE_COLUMN_NAMES, map[string]interface{}{
+		"table_name_id":        tableNameID,
+		"table_column_name":    columnName,
+		"table_column_type_id": columnTypeID,
+	})
 }
 
 func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
@@ -116,7 +185,7 @@ func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, erro
 }
 
 func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
-	rows, err := p.dbConn.GetRows(tableName, values)
+	rows, err := p.dbConn.GetRowsSelect(tableName, []string{`id`}, values)
 	if err != nil {
 		return 0, err
 	}
@@ -130,4 +199,14 @@ func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string
 	id = p.dbConn.InsertRowAndReturnID(tableName, values)
 
 	return id, nil
+}
+
+func (p *ProfileStore) getColumnProfileTableName(columnDataType string) string {
+	return fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+}
+
+type ColumnProfileData struct {
+	data     interface{}
+	name     string
+	dataType string
 }

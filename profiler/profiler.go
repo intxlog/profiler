@@ -26,8 +26,13 @@ func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn) *Profiler {
 //Run profiles on all provided tables and store
 func (p *Profiler) ProfileTables(tableNames []string) error {
 
+	profileID, err := p.profileStore.NewProfile()
+	if err != nil {
+		return err
+	}
+
 	for _, tableName := range tableNames {
-		err := p.ProfileTable(tableName)
+		err := p.profileTable(tableName, profileID)
 		if err != nil {
 			return err
 		}
@@ -36,7 +41,7 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 }
 
 //Profiles the provided table
-func (p *Profiler) ProfileTable(tableName string) error {
+func (p *Profiler) profileTable(tableName string, profileID int) error {
 
 	rows, err := p.targetDBConn.GetSelectSingle(tableName)
 	if err != nil {
@@ -48,12 +53,12 @@ func (p *Profiler) ProfileTable(tableName string) error {
 		return err
 	}
 
-	return p.handleProfileTableColumns(tableName, columnsData)
+	return p.handleProfileTableColumns(tableName, profileID, columnsData)
 }
 
-func (p *Profiler) handleProfileTableColumns(tableName string, columnsData []*sql.ColumnType) error {
+func (p *Profiler) handleProfileTableColumns(tableName string, profileID int, columnsData []*sql.ColumnType) error {
 	for _, columnData := range columnsData {
-		err := p.handleProfileTableColumn(tableName, columnData)
+		err := p.handleProfileTableColumn(tableName, profileID, columnData)
 		if err != nil {
 			return err
 		}
@@ -61,16 +66,19 @@ func (p *Profiler) handleProfileTableColumns(tableName string, columnsData []*sq
 	return nil
 }
 
-func (p *Profiler) handleProfileTableColumn(tableName string, columnData *sql.ColumnType) error {
-	fmt.Printf("Column name %s db column type %s scan type %s\n", columnData.Name(), columnData.DatabaseTypeName(), columnData.ScanType())
-	len, ok := columnData.Length()
-	if ok {
-		fmt.Printf("column length %v\n", len)
+func (p *Profiler) handleProfileTableColumn(tableName string, profileID int, columnData *sql.ColumnType) error {
+	tableNameID, err := p.profileStore.RegisterTable(tableName)
+	if err != nil {
+		panic(err)
 	}
 
-	prec, scale, ok := columnData.DecimalSize()
-	if ok {
-		fmt.Printf("column decimal size %v %v\n", prec, scale)
+	columnTypeID, err := p.profileStore.RegisterTableColumnType(columnData.DatabaseTypeName())
+	if err != nil {
+		return err
+	}
+	columnNamesID, err := p.profileStore.RegisterTableColumn(tableNameID, columnTypeID, columnData.Name())
+	if err != nil {
+		return err
 	}
 
 	profileSelects := []string{}
@@ -90,12 +98,30 @@ func (p *Profiler) handleProfileTableColumn(tableName string, columnData *sql.Co
 		return err
 	}
 
-	//TODO - loop the columns we have back, store based on the primary column's data type into that table.
-	//Make sure that the columns exist on that data type profile table
-	columnsData, err := rows.ColumnTypes()
+	profileColumnData, err := rows.ColumnTypes()
 	if err != nil {
 		return err
 	}
 
-	return nil
+	//Setup profile value pointers so we can scan into the array
+	profileValues := make([]interface{}, len(profileColumnData))
+	profileValuePointers := make([]interface{}, len(profileColumnData))
+	for idx, _ := range profileValues {
+		profileValuePointers[idx] = &profileValues[idx]
+	}
+
+	if rows.Next() {
+		rows.Scan(profileValuePointers...)
+	}
+
+	profileResults := []ColumnProfileData{}
+	for idx, val := range profileValues {
+		profileResults = append(profileResults, ColumnProfileData{
+			data:     val,
+			name:     profileColumnData[idx].Name(),
+			dataType: profileColumnData[idx].DatabaseTypeName(),
+		})
+	}
+
+	return p.profileStore.StoreColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileResults)
 }
