@@ -227,7 +227,7 @@ func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (
 }
 
 func (p PostgresConn) GetTableRowCount(tableName string) (int, error) {
-	rows, err := p.GetRowsSelect(tableName, []string{`count(*) as count)`})
+	rows, err := p.GetRowsSelect(tableName, []string{`count(*) as count`})
 
 	if err != nil {
 		return 0, err

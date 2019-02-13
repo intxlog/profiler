@@ -56,10 +56,36 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 
 	rows.Close()
 
-	return p.handleProfileTableColumns(tableName, profileID, columnsData)
+	tableNameID, err := p.profileStore.RegisterTable(tableName)
+	if err != nil {
+		return err
+	}
+
+	tableNameObj := TableName{
+		ID:        tableNameID,
+		TableName: tableName,
+	}
+
+	err = p.recordTableRowCount(tableNameObj)
+	if err != nil {
+		return err
+	}
+
+	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
 }
 
-func (p *Profiler) handleProfileTableColumns(tableName string, profileID int, columnsData []*sql.ColumnType) error {
+func (p *Profiler) recordTableRowCount(tableName TableName) error {
+	rowCount, err := p.targetDBConn.GetTableRowCount(tableName.TableName)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount)
+
+	return err
+}
+
+func (p *Profiler) handleProfileTableColumns(tableName TableName, profileID int, columnsData []*sql.ColumnType) error {
 	for _, columnData := range columnsData {
 		err := p.handleProfileTableColumn(tableName, profileID, columnData)
 		if err != nil {
@@ -69,17 +95,13 @@ func (p *Profiler) handleProfileTableColumns(tableName string, profileID int, co
 	return nil
 }
 
-func (p *Profiler) handleProfileTableColumn(tableName string, profileID int, columnData *sql.ColumnType) error {
-	tableNameID, err := p.profileStore.RegisterTable(tableName)
-	if err != nil {
-		panic(err)
-	}
+func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, columnData *sql.ColumnType) error {
 
 	columnTypeID, err := p.profileStore.RegisterTableColumnType(columnData.DatabaseTypeName())
 	if err != nil {
 		return err
 	}
-	columnNamesID, err := p.profileStore.RegisterTableColumn(tableNameID, columnTypeID, columnData.Name())
+	columnNamesID, err := p.profileStore.RegisterTableColumn(tableName.ID, columnTypeID, columnData.Name())
 	if err != nil {
 		return err
 	}
@@ -90,7 +112,7 @@ func (p *Profiler) handleProfileTableColumn(tableName string, profileID int, col
 		profileSelects = append(profileSelects, fmt.Sprintf(`%s as %s`, fmt.Sprintf(pro, columnData.Name()), col))
 	}
 
-	rows, err := p.targetDBConn.GetRowsSelect(tableName, profileSelects)
+	rows, err := p.targetDBConn.GetRowsSelect(tableName.TableName, profileSelects)
 	if err != nil {
 		return err
 	}
