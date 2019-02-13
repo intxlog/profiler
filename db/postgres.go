@@ -176,7 +176,18 @@ func (p PostgresConn) InsertRowAndReturnID(tableName string, values map[string]i
 	return newID
 }
 
-func (p PostgresConn) GetRowsSelect(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error) {
+func (p PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.Rows, error) {
+	query := p.getSelectQueryString(tableName, selects)
+
+	conn, err := p.GetConnection()
+	if err != nil {
+		panic(err)
+	}
+
+	return conn.Query(query)
+}
+
+func (p PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error) {
 	whereClauses := []string{}
 	whereValues := []interface{}{}
 	idx := 1
@@ -186,11 +197,15 @@ func (p PostgresConn) GetRowsSelect(tableName string, selects []string, wheres m
 		idx = idx + 1
 	}
 
-	query := fmt.Sprintf(`select %s from %s where %s`,
-		strings.Join(selects, `,`),
-		tableName,
-		strings.Join(whereClauses, ` AND `),
-	)
+	query := p.getSelectQueryString(tableName, selects)
+
+	//if we have where claues then add them to our query
+	if len(whereClauses) > 0 {
+		query = fmt.Sprintf(`%s where %s`,
+			query,
+			strings.Join(whereClauses, ` AND `),
+		)
+	}
 
 	conn, err := p.GetConnection()
 	if err != nil {
@@ -200,8 +215,29 @@ func (p PostgresConn) GetRowsSelect(tableName string, selects []string, wheres m
 	return conn.Query(query, whereValues...)
 }
 
+func (p PostgresConn) getSelectQueryString(tableName string, selects []string) string {
+	return fmt.Sprintf(`select %s from %s`,
+		strings.Join(selects, `,`),
+		tableName,
+	)
+}
+
 func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
-	return p.GetRowsSelect(tableName, []string{`*`}, wheres)
+	return p.GetRowsSelectWhere(tableName, []string{`*`}, wheres)
+}
+
+func (p PostgresConn) GetTableRowCount(tableName string) (int, error) {
+	rows, err := p.GetRowsSelect(tableName, []string{`count(*) as count)`})
+
+	if err != nil {
+		return 0, err
+	}
+
+	rows.Next()
+	var count int
+	err = rows.Scan(&count)
+
+	return count, err
 }
 
 func (p PostgresConn) dbExists(dbName string) (bool, error) {

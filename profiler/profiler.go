@@ -43,6 +43,8 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 //Profiles the provided table
 func (p *Profiler) profileTable(tableName string, profileID int) error {
 
+	// p.profileStore.RecordTableProfile()
+
 	rows, err := p.targetDBConn.GetSelectSingle(tableName)
 	if err != nil {
 		return err

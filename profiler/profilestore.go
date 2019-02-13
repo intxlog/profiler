@@ -184,8 +184,15 @@ func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, erro
 	})
 }
 
+func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int) (int, error) {
+	return p.getOrInsertTableRowID(TABLE_PROFILES, map[string]interface{}{
+		"table_name_id":   tableNameID,
+		"table_row_count": rowCount,
+	})
+}
+
 func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
-	rows, err := p.dbConn.GetRowsSelect(tableName, []string{`id`}, values)
+	rows, err := p.dbConn.GetRowsSelectWhere(tableName, []string{`id`}, values)
 	if err != nil {
 		return 0, err
 	}
