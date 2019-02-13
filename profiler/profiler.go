@@ -3,7 +3,6 @@ package profiler
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"bitbucket.org/intxlog/profiler/db"
 )
@@ -91,13 +90,7 @@ func (p *Profiler) handleProfileTableColumn(tableName string, profileID int, col
 		profileSelects = append(profileSelects, fmt.Sprintf(`%s as %s`, fmt.Sprintf(pro, columnData.Name()), col))
 	}
 
-	profileSelectStr := strings.Join(profileSelects, ",")
-
-	query := fmt.Sprintf(`select %s from %s`, profileSelectStr, tableName)
-
-	db, _ := p.targetDBConn.GetConnection()
-
-	rows, err := db.Query(query)
+	rows, err := p.targetDBConn.GetRowsSelect(tableName, profileSelects)
 	if err != nil {
 		return err
 	}
