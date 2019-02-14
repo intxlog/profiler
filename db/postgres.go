@@ -128,7 +128,7 @@ func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinitio
 func (p *PostgresConn) ProfilesByType(columnType string) map[string]string {
 	profileColumns := map[string]string{}
 	switch columnType {
-	case `INT4`:
+	case `INT4`, `NUMERIC`:
 		profileColumns["maximum"] = "max(%s)"
 		profileColumns["minimum"] = "min(%s)"
 		profileColumns["average"] = "avg(%s)"
@@ -232,6 +232,7 @@ func (p *PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer rows.Close()
 
 	rows.Next()
 	var count int
