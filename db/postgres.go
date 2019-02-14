@@ -14,14 +14,14 @@ type PostgresConn struct {
 }
 
 //Creates a new postgres connection object
-func NewPostgresConn(dataSourceName string) PostgresConn {
-	return PostgresConn{
+func NewPostgresConn(dataSourceName string) *PostgresConn {
+	return &PostgresConn{
 		dataSourceName: dataSourceName,
 	}
 }
 
 //Connect to default database
-func (p PostgresConn) GetConnection() (*sql.DB, error) {
+func (p *PostgresConn) GetConnection() (*sql.DB, error) {
 	if p.conn != nil {
 		return p.conn, nil
 	}
@@ -31,7 +31,7 @@ func (p PostgresConn) GetConnection() (*sql.DB, error) {
 	return p.conn, err
 }
 
-func (p PostgresConn) GetSelectSingle(tableName string) (*sql.Rows, error) {
+func (p *PostgresConn) GetSelectSingle(tableName string) (*sql.Rows, error) {
 	qry := fmt.Sprintf(`select * from %s limit 1`, tableName)
 	conn, err := p.GetConnection()
 	if err != nil {
@@ -41,7 +41,7 @@ func (p PostgresConn) GetSelectSingle(tableName string) (*sql.Rows, error) {
 	return conn.Query(qry)
 }
 
-func (p PostgresConn) DoesTableExist(tableName string) (bool, error) {
+func (p *PostgresConn) DoesTableExist(tableName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return false, err
@@ -59,7 +59,7 @@ func (p PostgresConn) DoesTableExist(tableName string) (bool, error) {
 	return name == tableName, nil
 }
 
-func (p PostgresConn) CreateTable(tableName string, columns []DBColumnDefinition) error {
+func (p *PostgresConn) CreateTable(tableName string, columns []DBColumnDefinition) error {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return err
@@ -83,14 +83,14 @@ func (p PostgresConn) CreateTable(tableName string, columns []DBColumnDefinition
 	return err
 }
 
-func (p PostgresConn) CreateTableIfNotExists(tableName string, columns []DBColumnDefinition) error {
+func (p *PostgresConn) CreateTableIfNotExists(tableName string, columns []DBColumnDefinition) error {
 	if ok, err := p.DoesTableExist(tableName); ok && err == nil {
 		return nil
 	}
 	return p.CreateTable(tableName, columns)
 }
 
-func (p PostgresConn) DoesTableColumnExist(tableName string, columnName string) (bool, error) {
+func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return false, err
@@ -111,7 +111,7 @@ func (p PostgresConn) DoesTableColumnExist(tableName string, columnName string) 
 	return name == columnName, nil
 }
 
-func (p PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition) error {
+func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition) error {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func (p PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition
 	return err
 }
 
-func (p PostgresConn) ProfilesByType(columnType string) map[string]string {
+func (p *PostgresConn) ProfilesByType(columnType string) map[string]string {
 	profileColumns := map[string]string{}
 	switch columnType {
 	case `INT4`:
@@ -142,7 +142,7 @@ func (p PostgresConn) ProfilesByType(columnType string) map[string]string {
 	return profileColumns
 }
 
-func (p PostgresConn) InsertRowAndReturnID(tableName string, values map[string]interface{}) int {
+func (p *PostgresConn) InsertRowAndReturnID(tableName string, values map[string]interface{}) int {
 
 	insertColumns := []string{}
 	insertValuePlaceholders := []string{}
@@ -176,7 +176,7 @@ func (p PostgresConn) InsertRowAndReturnID(tableName string, values map[string]i
 	return newID
 }
 
-func (p PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.Rows, error) {
+func (p *PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.Rows, error) {
 	query := p.getSelectQueryString(tableName, selects)
 
 	conn, err := p.GetConnection()
@@ -187,7 +187,7 @@ func (p PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.Ro
 	return conn.Query(query)
 }
 
-func (p PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error) {
+func (p *PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wheres map[string]interface{}) (*sql.Rows, error) {
 	whereClauses := []string{}
 	whereValues := []interface{}{}
 	idx := 1
@@ -215,18 +215,18 @@ func (p PostgresConn) GetRowsSelectWhere(tableName string, selects []string, whe
 	return conn.Query(query, whereValues...)
 }
 
-func (p PostgresConn) getSelectQueryString(tableName string, selects []string) string {
+func (p *PostgresConn) getSelectQueryString(tableName string, selects []string) string {
 	return fmt.Sprintf(`select %s from %s`,
 		strings.Join(selects, `,`),
 		tableName,
 	)
 }
 
-func (p PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
+func (p *PostgresConn) GetRows(tableName string, wheres map[string]interface{}) (*sql.Rows, error) {
 	return p.GetRowsSelectWhere(tableName, []string{`*`}, wheres)
 }
 
-func (p PostgresConn) GetTableRowCount(tableName string) (int, error) {
+func (p *PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	rows, err := p.GetRowsSelect(tableName, []string{`count(*) as count`})
 
 	if err != nil {
@@ -240,7 +240,7 @@ func (p PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	return count, err
 }
 
-func (p PostgresConn) dbExists(dbName string) (bool, error) {
+func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return false, err
