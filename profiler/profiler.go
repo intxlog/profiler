@@ -106,10 +106,12 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 		return err
 	}
 
+	columnNameEscaped := fmt.Sprintf(`"%s"`, columnData.Name())
+	//TODO - make this more generic
 	profileSelects := []string{}
 	profiles := p.targetDBConn.ProfilesByType(columnData.DatabaseTypeName())
 	for col, pro := range profiles {
-		profileSelects = append(profileSelects, fmt.Sprintf(`%s as %s`, fmt.Sprintf(pro, columnData.Name()), col))
+		profileSelects = append(profileSelects, fmt.Sprintf(`%s as "%s"`, fmt.Sprintf(pro, columnNameEscaped), col))
 	}
 
 	rows, err := p.targetDBConn.GetRowsSelect(tableName.TableName, profileSelects)

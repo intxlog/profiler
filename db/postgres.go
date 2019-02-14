@@ -128,12 +128,16 @@ func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinitio
 func (p *PostgresConn) ProfilesByType(columnType string) map[string]string {
 	profileColumns := map[string]string{}
 	switch columnType {
-	case `INT4`, `NUMERIC`:
+	case `INT4`, `NUMERIC`, `INT2`, `INT8`:
 		profileColumns["maximum"] = "max(%s)"
 		profileColumns["minimum"] = "min(%s)"
 		profileColumns["average"] = "avg(%s)"
 		break
-	case `VARCHAR`:
+	case `TIMESTAMP`, `TIMESTAMPTZ`, `DATE`:
+		profileColumns["maximum"] = "max(%s)"
+		profileColumns["minimum"] = "min(%s)"
+		break
+	case `VARCHAR`, `BPCHAR`, `TEXT`:
 		profileColumns["max_length"] = "max(length(%s))"
 		profileColumns["avg_length"] = "avg(length(%s))"
 		break
