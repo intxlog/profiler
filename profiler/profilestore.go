@@ -2,6 +2,7 @@ package profiler
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"bitbucket.org/intxlog/profiler/db"
@@ -10,6 +11,7 @@ import (
 type ProfileStore struct {
 	dbConn      db.DBConn
 	hasScaffold bool
+	mux         sync.Mutex
 }
 
 const PROFILE_RECORDS = `profile_records`
@@ -179,6 +181,8 @@ func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
 }
 
 func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, error) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
 	return p.getOrInsertTableRowID(TABLE_COLUMN_TYPES, map[string]interface{}{
 		"table_column_type": columnDataType,
 	})

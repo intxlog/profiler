@@ -30,13 +30,27 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 		return err
 	}
 
+	errChan := make(chan error)
 	for _, tableName := range tableNames {
-		err := p.profileTable(tableName, profileID)
+		go p.profileTableChannel(tableName, profileID, errChan)
+	}
+
+	tablesProfiled := 0
+	for err := range errChan {
 		if err != nil {
 			return err
 		}
+		tablesProfiled++
+		if tablesProfiled >= len(tableNames) {
+			break
+		}
 	}
+
 	return nil
+}
+
+func (p *Profiler) profileTableChannel(tableName string, profileID int, c chan error) {
+	c <- p.profileTable(tableName, profileID)
 }
 
 //Profiles the provided table
