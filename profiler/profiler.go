@@ -23,7 +23,7 @@ func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn) *Profiler {
 }
 
 //Run profiles on all provided tables and store
-func (p *Profiler) ProfileTables(tableNames []string) error {
+func (p *Profiler) ProfileTablesByName(tableNames []string) error {
 
 	profileID, err := p.profileStore.NewProfile()
 	if err != nil {
@@ -31,6 +31,7 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 	}
 
 	errChan := make(chan error)
+	defer close(errChan)
 	for _, tableName := range tableNames {
 		go p.profileTableChannel(tableName, profileID, errChan)
 	}
@@ -49,16 +50,104 @@ func (p *Profiler) ProfileTables(tableNames []string) error {
 	return nil
 }
 
+//Run profiles on all provided tables and store
+func (p *Profiler) RunProfile(profile ProfileDefinition) error {
+
+	profileID, err := p.profileStore.NewProfile()
+	if err != nil {
+		return err
+	}
+
+	//Profile full tables
+	errChan := make(chan error)
+	defer close(errChan)
+	for _, tableName := range profile.FullProfileTables {
+		go p.profileTableChannel(tableName, profileID, errChan)
+	}
+
+	tablesProfiled := 0
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+		tablesProfiled++
+		if tablesProfiled >= len(profile.FullProfileTables) {
+			break
+		}
+	}
+
+	//Profile the custom profile definitions
+	for _, table := range profile.CustomProfileTables {
+		go p.profileTableDefinitionChannel(table, profileID, errChan)
+	}
+
+	//TODO - make this a function so we can reuse it
+	tablesProfiled = 0
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+		tablesProfiled++
+		if tablesProfiled >= len(profile.CustomProfileTables) {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (p *Profiler) profileTableDefinitionChannel(tableDef TableDefinition, profileID int, c chan error) {
+	c <- p.profileTableDefinition(tableDef, profileID)
+}
+
 func (p *Profiler) profileTableChannel(tableName string, profileID int, c chan error) {
 	c <- p.profileTable(tableName, profileID)
 }
 
 //Profiles the provided table
+func (p *Profiler) profileTableDefinition(tableDef TableDefinition, profileID int) error {
+
+	selects := []string{}
+	for _, col := range tableDef.CustomColumns {
+		selects = append(selects, fmt.Sprintf(`%s as %s`, col.ColumnDefinition, col.ColumnName))
+	}
+
+	rows, err := p.targetDBConn.GetSelectSingle(tableDef.TableName, selects)
+	if err != nil {
+		return err
+	}
+
+	//TODO - Group the types by the def and names and send the full thing to profile func
+	columnsData, err := rows.ColumnTypes()
+	if err != nil {
+		return err
+	}
+
+	rows.Close()
+
+	// //TODO - this should happen outside of this context
+	// tableNameID, err := p.profileStore.RegisterTable(tableDef.TableName)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// tableNameObj := TableName{
+	// 	ID:        tableNameID,
+	// 	TableName: tableDef.TableName,
+	// }
+
+	// err = p.recordTableRowCount(tableNameObj)
+	// if err != nil {
+	// 	return err
+	// }
+
+	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
+}
+
+//Profiles the provided table
 func (p *Profiler) profileTable(tableName string, profileID int) error {
 
-	// p.profileStore.RecordTableProfile()
-
-	rows, err := p.targetDBConn.GetSelectSingle(tableName)
+	rows, err := p.targetDBConn.GetSelectAllColumnsSingle(tableName)
 	if err != nil {
 		return err
 	}
@@ -70,6 +159,7 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 
 	rows.Close()
 
+	//TODO - this should happen outside of this context
 	tableNameID, err := p.profileStore.RegisterTable(tableName)
 	if err != nil {
 		return err

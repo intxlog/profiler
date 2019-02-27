@@ -23,6 +23,11 @@ const TABLE_COLUMN_PROFILE_PREFIX = `table_column_profiles_`
 const TABLE_COLUMN_NAME_ID = `table_column_name_id`
 const TABLE_COLUMN_NAME_ID_TYPE = `int`
 
+const TABLE_CUSTOM_COLUMN_NAME_ID = `table_column_name_id`
+const TABLE_CUSTOM_COLUMN_NAME_ID_TYPE = `int`
+const TABLE_CUSTOM_COLUMN_NAMES = `table_custom_column_names`
+const TABLE_CUSTOM_COLUMN_PROFILE_PREFIX = `table_custom_column_profiles_`
+
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
 	p := &ProfileStore{
 		dbConn:      dbConn,
@@ -90,6 +95,21 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 		return err
 	}
 
+	//build table custom columns table
+	err = p.dbConn.CreateTableIfNotExists(TABLE_CUSTOM_COLUMN_NAMES,
+		db.ConvertMapToColumnDefinitions(
+			map[string]string{
+				"table_name_id":                  "int",
+				"table_column_name":              "varchar",
+				"table_column_type_id":           "int",
+				"table_custom_column_definition": "text",
+			},
+		),
+	)
+	if err != nil {
+		return err
+	}
+
 	//build table column types table
 	err = p.dbConn.CreateTableIfNotExists(TABLE_COLUMN_TYPES,
 		db.ConvertMapToColumnDefinitions(
@@ -105,6 +125,37 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 	p.hasScaffold = true
 	return nil
 
+}
+
+//Stores the custom column profile data, scaffolds the custom profile table for the value type if needed
+func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnType string, profileID int, profileValue interface{}) error {
+
+	profileTable := p.getCustomColumnProfileTableName(columnType)
+
+	columnsMap := map[string]string{
+		TABLE_CUSTOM_COLUMN_NAME_ID: TABLE_CUSTOM_COLUMN_NAME_ID_TYPE,
+		`value`:                     columnType,
+	}
+
+	//error here just means does not exist
+	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
+
+	if !tableExists {
+		err := p.dbConn.CreateTable(profileTable, db.ConvertMapToColumnDefinitions(columnsMap))
+		if err != nil {
+			return err
+		}
+	}
+
+	columnData := map[string]interface{}{
+		TABLE_CUSTOM_COLUMN_NAME_ID: columnNamesID,
+		`value`:                     profileValue,
+	}
+
+	//At this point the table and columns exist, so insert data
+	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
+
+	return nil
 }
 
 //TODO - make this function not horrible
@@ -174,6 +225,15 @@ func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnTypeID int, co
 	})
 }
 
+func (p *ProfileStore) RegisterTableCustomColumn(tableNameID int, columnTypeID int, columnName string, columnDefinition string) (int, error) {
+	return p.getOrInsertTableRowID(TABLE_CUSTOM_COLUMN_NAMES, map[string]interface{}{
+		"table_name_id":                  tableNameID,
+		"table_column_name":              columnName,
+		"table_column_type_id":           columnTypeID,
+		"table_custom_column_definition": columnDefinition,
+	})
+}
+
 func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
 	return p.getOrInsertTableRowID(TABLE_NAMES, map[string]interface{}{
 		"table_name": tableName,
@@ -215,6 +275,10 @@ func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string
 
 func (p *ProfileStore) getColumnProfileTableName(columnDataType string) string {
 	return fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+}
+
+func (p *ProfileStore) getCustomColumnProfileTableName(columnDataType string) string {
+	return fmt.Sprintf(`%s%s`, TABLE_CUSTOM_COLUMN_PROFILE_PREFIX, columnDataType)
 }
 
 type ColumnProfileData struct {

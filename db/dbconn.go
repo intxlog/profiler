@@ -7,8 +7,11 @@ type DBConn interface {
 	//Returns an active db connection
 	GetConnection() (*sql.DB, error)
 
+	//Select a single row with the provided selects
+	GetSelectSingle(tableName string, selects []string) (*sql.Rows, error)
+
 	//query to return a single row from specifeid table in a sql.Rows object (so we get metadata)
-	GetSelectSingle(tableName string) (*sql.Rows, error)
+	GetSelectAllColumnsSingle(tableName string) (*sql.Rows, error)
 
 	//Checks if a table exists
 	DoesTableExist(tableName string) (bool, error)

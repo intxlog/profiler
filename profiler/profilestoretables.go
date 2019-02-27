@@ -29,3 +29,11 @@ type ProfileRecord struct {
 	ID          int       `db:"id"`
 	ProfileDate time.Time `db:"profile_date"`
 }
+
+type TableCustomColumnName struct {
+	ID                     int    `db:"id"`
+	TableNameID            int    `db:"table_name_id"`
+	TableColumnName        string `db:"table_column_name"`
+	TableColumnTypeID      int    `db:"table_column_type_id"`
+	CustomColumnDefinition string `db:"table_custom_column_definition"`
+}

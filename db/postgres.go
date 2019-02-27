@@ -31,7 +31,17 @@ func (p *PostgresConn) GetConnection() (*sql.DB, error) {
 	return p.conn, err
 }
 
-func (p *PostgresConn) GetSelectSingle(tableName string) (*sql.Rows, error) {
+func (p *PostgresConn) GetSelectSingle(tableName string, selects []string) (*sql.Rows, error) {
+	qry := fmt.Sprintf(`select %s from %s limit 1`, p.getConcatSelects(selects), tableName)
+	conn, err := p.GetConnection()
+	if err != nil {
+		return nil, err
+	}
+
+	return conn.Query(qry)
+}
+
+func (p *PostgresConn) GetSelectAllColumnsSingle(tableName string) (*sql.Rows, error) {
 	qry := fmt.Sprintf(`select * from %s limit 1`, tableName)
 	conn, err := p.GetConnection()
 	if err != nil {
@@ -219,9 +229,13 @@ func (p *PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wh
 	return conn.Query(query, whereValues...)
 }
 
+func (p *PostgresConn) getConcatSelects(selects []string) string {
+	return strings.Join(selects, `,`)
+}
+
 func (p *PostgresConn) getSelectQueryString(tableName string, selects []string) string {
 	return fmt.Sprintf(`select %s from %s`,
-		strings.Join(selects, `,`),
+		p.getConcatSelects(selects),
 		tableName,
 	)
 }
