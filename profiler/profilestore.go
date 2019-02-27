@@ -23,6 +23,9 @@ const TABLE_COLUMN_PROFILE_PREFIX = `table_column_profiles_`
 const TABLE_COLUMN_NAME_ID = `table_column_name_id`
 const TABLE_COLUMN_NAME_ID_TYPE = `int`
 
+const PROFILE_RECORD_ID = `profile_record_id`
+const PROFILE_RECORD_ID_TYPE = `int`
+
 const TABLE_CUSTOM_COLUMN_NAME_ID = `table_column_name_id`
 const TABLE_CUSTOM_COLUMN_NAME_ID_TYPE = `int`
 const TABLE_CUSTOM_COLUMN_NAMES = `table_custom_column_names`
@@ -72,8 +75,9 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 	err = p.dbConn.CreateTableIfNotExists(TABLE_PROFILES,
 		db.ConvertMapToColumnDefinitions(
 			map[string]string{
-				"table_name_id":   "int",
-				"table_row_count": "int",
+				"table_name_id":     "int",
+				"table_row_count":   "int",
+				"profile_record_id": "int",
 			},
 		),
 	)
@@ -134,6 +138,7 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 
 	columnsMap := map[string]string{
 		TABLE_CUSTOM_COLUMN_NAME_ID: TABLE_CUSTOM_COLUMN_NAME_ID_TYPE,
+		PROFILE_RECORD_ID:           PROFILE_RECORD_ID_TYPE,
 		`value`:                     columnType,
 	}
 
@@ -149,6 +154,7 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 
 	columnData := map[string]interface{}{
 		TABLE_CUSTOM_COLUMN_NAME_ID: columnNamesID,
+		PROFILE_RECORD_ID:           profileID,
 		`value`:                     profileValue,
 	}
 
@@ -165,6 +171,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 	columnsMap := map[string]string{
 		TABLE_COLUMN_NAME_ID: TABLE_COLUMN_NAME_ID_TYPE,
+		PROFILE_RECORD_ID:    PROFILE_RECORD_ID_TYPE,
 	}
 	for _, data := range profileResults {
 		columnsMap[data.name] = data.dataType
@@ -199,6 +206,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 	columnData := map[string]interface{}{
 		TABLE_COLUMN_NAME_ID: columnNamesID,
+		PROFILE_RECORD_ID:    profileID,
 	}
 	for _, data := range profileResults {
 		columnData[data.name] = data.data
@@ -248,10 +256,11 @@ func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, erro
 	})
 }
 
-func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int) (int, error) {
+func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, profileID int) (int, error) {
 	return p.getOrInsertTableRowID(TABLE_PROFILES, map[string]interface{}{
-		"table_name_id":   tableNameID,
-		"table_row_count": rowCount,
+		"table_name_id":     tableNameID,
+		"table_row_count":   rowCount,
+		"profile_record_id": profileID,
 	})
 }
 

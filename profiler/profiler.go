@@ -207,7 +207,7 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 		TableName: tableName,
 	}
 
-	err = p.recordTableRowCount(tableNameObj)
+	err = p.recordTableRowCount(tableNameObj, profileID)
 	if err != nil {
 		return err
 	}
@@ -215,13 +215,13 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
 }
 
-func (p *Profiler) recordTableRowCount(tableName TableName) error {
+func (p *Profiler) recordTableRowCount(tableName TableName, profileID int) error {
 	rowCount, err := p.targetDBConn.GetTableRowCount(tableName.TableName)
 	if err != nil {
 		return err
 	}
 
-	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount)
+	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, profileID)
 
 	return err
 }
