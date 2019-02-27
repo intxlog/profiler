@@ -3,6 +3,7 @@ package profiler
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"bitbucket.org/intxlog/profiler/db"
 )
@@ -107,12 +108,18 @@ func (p *Profiler) profileTableChannel(tableName string, profileID int, c chan e
 //Profiles the provided table
 func (p *Profiler) profileTableDefinition(tableDef TableDefinition, profileID int) error {
 
+	tableNameID, err := p.profileStore.RegisterTable(tableDef.TableName)
+	if err != nil {
+		return err
+	}
+
 	selects := []string{}
 	for _, col := range tableDef.CustomColumns {
 		selects = append(selects, fmt.Sprintf(`%s as %s`, col.ColumnDefinition, col.ColumnName))
 	}
 
-	rows, err := p.targetDBConn.GetSelectSingle(tableDef.TableName, selects)
+	rows, err := p.targetDBConn.GetRowsSelect(tableDef.TableName, selects)
+	defer rows.Close()
 	if err != nil {
 		return err
 	}
@@ -123,25 +130,50 @@ func (p *Profiler) profileTableDefinition(tableDef TableDefinition, profileID in
 		return err
 	}
 
+	//TODO - make this do a lookup by column name instead
+	//Setup profile value pointers so we can scan into the array
+	//we make the assumption that results return in the order of selects here
+	profileValues := make([]interface{}, len(columnsData))
+	profileValuePointers := make([]interface{}, len(columnsData))
+	for idx := range profileValues {
+		profileValuePointers[idx] = &profileValues[idx]
+	}
+
+	if rows.Next() {
+		rows.Scan(profileValuePointers...)
+	} else {
+		return fmt.Errorf(`failed to get results from query`)
+	}
+
+	for idx, columnData := range columnsData {
+		columnTypeID, err := p.profileStore.RegisterTableColumnType(columnData.DatabaseTypeName())
+		if err != nil {
+			return err
+		}
+
+		//Find the column definition for this result by iterating our column definitions
+		var colDefinition string
+		for _, col := range tableDef.CustomColumns {
+			if strings.ToLower(col.ColumnName) == columnData.Name() {
+				colDefinition = col.ColumnDefinition
+				break
+			}
+		}
+
+		columnNamesID, err := p.profileStore.RegisterTableCustomColumn(tableNameID, columnTypeID, columnData.Name(), colDefinition)
+		if err != nil {
+			return err
+		}
+
+		err = p.profileStore.StoreCustomColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileValuePointers[idx])
+		if err != nil {
+			return err
+		}
+	}
+
 	rows.Close()
 
-	// //TODO - this should happen outside of this context
-	// tableNameID, err := p.profileStore.RegisterTable(tableDef.TableName)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// tableNameObj := TableName{
-	// 	ID:        tableNameID,
-	// 	TableName: tableDef.TableName,
-	// }
-
-	// err = p.recordTableRowCount(tableNameObj)
-	// if err != nil {
-	// 	return err
-	// }
-
-	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
+	return nil
 }
 
 //Profiles the provided table
