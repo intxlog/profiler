@@ -62,35 +62,40 @@ func (p *Profiler) RunProfile(profile ProfileDefinition) error {
 	//Profile full tables
 	errChan := make(chan error)
 	defer close(errChan)
-	for _, tableName := range profile.FullProfileTables {
-		go p.profileTableChannel(tableName, profileID, errChan)
+
+	if len(profile.FullProfileTables) > 0 {
+		for _, tableName := range profile.FullProfileTables {
+			go p.profileTableChannel(tableName, profileID, errChan)
+		}
+
+		tablesProfiled := 0
+		for err := range errChan {
+			if err != nil {
+				return err
+			}
+			tablesProfiled++
+			if tablesProfiled >= len(profile.FullProfileTables) {
+				break
+			}
+		}
 	}
 
-	tablesProfiled := 0
-	for err := range errChan {
-		if err != nil {
-			return err
+	if len(profile.CustomProfileTables) > 0 {
+		//Profile the custom profile definitions
+		for _, table := range profile.CustomProfileTables {
+			go p.profileTableDefinitionChannel(table, profileID, errChan)
 		}
-		tablesProfiled++
-		if tablesProfiled >= len(profile.FullProfileTables) {
-			break
-		}
-	}
 
-	//Profile the custom profile definitions
-	for _, table := range profile.CustomProfileTables {
-		go p.profileTableDefinitionChannel(table, profileID, errChan)
-	}
-
-	//TODO - make this a function so we can reuse it
-	tablesProfiled = 0
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-		tablesProfiled++
-		if tablesProfiled >= len(profile.CustomProfileTables) {
-			break
+		//TODO - make this a function so we can reuse it
+		tablesProfiled := 0
+		for err := range errChan {
+			if err != nil {
+				return err
+			}
+			tablesProfiled++
+			if tablesProfiled >= len(profile.CustomProfileTables) {
+				break
+			}
 		}
 	}
 
