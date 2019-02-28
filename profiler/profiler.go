@@ -83,7 +83,7 @@ func (p *Profiler) RunProfile(profile ProfileDefinition) error {
 	if len(profile.CustomProfileTables) > 0 {
 		//Profile the custom profile definitions
 		for _, table := range profile.CustomProfileTables {
-			go p.profileTableDefinitionChannel(table, profileID, errChan)
+			go p.profileTableCustomColumnsChannel(table, profileID, errChan)
 		}
 
 		//TODO - make this a function so we can reuse it
@@ -102,8 +102,8 @@ func (p *Profiler) RunProfile(profile ProfileDefinition) error {
 	return nil
 }
 
-func (p *Profiler) profileTableDefinitionChannel(tableDef TableDefinition, profileID int, c chan error) {
-	c <- p.profileTableDefinition(tableDef, profileID)
+func (p *Profiler) profileTableCustomColumnsChannel(tableDef TableDefinition, profileID int, c chan error) {
+	c <- p.profileTableCustomColumns(tableDef, profileID)
 }
 
 func (p *Profiler) profileTableChannel(tableName string, profileID int, c chan error) {
@@ -111,7 +111,7 @@ func (p *Profiler) profileTableChannel(tableName string, profileID int, c chan e
 }
 
 //Profiles the provided table
-func (p *Profiler) profileTableDefinition(tableDef TableDefinition, profileID int) error {
+func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID int) error {
 
 	tableNameID, err := p.profileStore.RegisterTable(tableDef.TableName)
 	if err != nil {
