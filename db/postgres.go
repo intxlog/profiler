@@ -106,9 +106,7 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 		return false, err
 	}
 
-	query := fmt.Sprintf(`SELECT column_name 
-		FROM information_schema.columns 
-		WHERE table_name ilike '%s' and column_name ilike '%s'`, tableName, columnName)
+	query := fmt.Sprintf(`SELECT %s FROM %s LIMIT 1`, columnName, tableName)
 
 	row := conn.QueryRow(query)
 
@@ -118,7 +116,7 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 		return false, err
 	}
 
-	return name == columnName, nil
+	return true, nil
 }
 
 func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition) error {
