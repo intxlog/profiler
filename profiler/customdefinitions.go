@@ -1,17 +1,17 @@
 package profiler
 
 type ProfileDefinition struct {
-	FullProfileTables   []string
-	CustomProfileTables []TableDefinition
+	FullProfileTables   []string          `json:"FullProfileTables"`
+	CustomProfileTables []TableDefinition `json:"CustomProfileTables"`
 }
 
 type TableDefinition struct {
-	TableName     string
-	Columns       []string
-	CustomColumns []CustomColumnDefition
+	TableName     string                 `json:"TableName"`
+	Columns       []string               `json:"Columns"`
+	CustomColumns []CustomColumnDefition `json:"CustomColumns"`
 }
 
 type CustomColumnDefition struct {
-	ColumnName       string
-	ColumnDefinition string
+	ColumnName       string `json:"ColumnName"`
+	ColumnDefinition string `json:"ColumnDefinition"`
 }
