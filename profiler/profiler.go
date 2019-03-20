@@ -178,7 +178,33 @@ func (p *Profiler) profileTableDefinition(tableDef TableDefinition, profileID in
 
 	rows.Close()
 
+	if len(tableDef.Columns) > 0 {
+		//profile the defined columns
+		err := p.profileTableDefinedColumns(tableDef.TableName, profileID, tableDef.Columns)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+//does a  table profile but only with the specified columns instead of the full thing
+func (p *Profiler) profileTableDefinedColumns(tableName string, profileID int, columns []string) error {
+	// rows, err := p.targetDBConn.GetSelectAllColumnsSingle(tableName)
+	rows, err := p.targetDBConn.GetSelectSingle(tableName, columns)
+	if err != nil {
+		return err
+	}
+
+	columnsData, err := rows.ColumnTypes()
+	if err != nil {
+		return err
+	}
+
+	rows.Close()
+
+	return p.profileTableWithColumnsData(tableName, profileID, columnsData)
 }
 
 //Profiles the provided table
@@ -196,6 +222,10 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 
 	rows.Close()
 
+	return p.profileTableWithColumnsData(tableName, profileID, columnsData)
+}
+
+func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, columnsData []*sql.ColumnType) error {
 	//TODO - this should happen outside of this context
 	tableNameID, err := p.profileStore.RegisterTable(tableName)
 	if err != nil {
