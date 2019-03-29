@@ -186,7 +186,6 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 			return err
 		}
 	} else {
-		//TODO - refactor this into a function call
 		//Table exists so just make sure each column exists
 		for _, data := range profileResults {
 			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, data.name)

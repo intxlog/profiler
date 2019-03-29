@@ -37,15 +37,9 @@ func (p *Profiler) ProfileTablesByName(tableNames []string) error {
 		go p.profileTableChannel(tableName, profileID, errChan)
 	}
 
-	tablesProfiled := 0
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-		tablesProfiled++
-		if tablesProfiled >= len(tableNames) {
-			break
-		}
+	err = p.waitForTableChannels(errChan, len(tableNames))
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -68,15 +62,9 @@ func (p *Profiler) RunProfile(profile ProfileDefinition) error {
 			go p.profileTableChannel(tableName, profileID, errChan)
 		}
 
-		tablesProfiled := 0
-		for err := range errChan {
-			if err != nil {
-				return err
-			}
-			tablesProfiled++
-			if tablesProfiled >= len(profile.FullProfileTables) {
-				break
-			}
+		err := p.waitForTableChannels(errChan, len(profile.FullProfileTables))
+		if err != nil {
+			return err
 		}
 	}
 
@@ -86,20 +74,26 @@ func (p *Profiler) RunProfile(profile ProfileDefinition) error {
 			go p.profileTableCustomColumnsChannel(table, profileID, errChan)
 		}
 
-		//TODO - make this a function so we can reuse it
-		tablesProfiled := 0
-		for err := range errChan {
-			if err != nil {
-				return err
-			}
-			tablesProfiled++
-			if tablesProfiled >= len(profile.CustomProfileTables) {
-				break
-			}
+		err := p.waitForTableChannels(errChan, len(profile.CustomProfileTables))
+		if err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func (p *Profiler) waitForTableChannels(errChan chan error, totalResults int) error {
+	tablesProfiled := 0
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+		tablesProfiled++
+		if tablesProfiled >= totalResults {
+			break
+		}
+	}
 }
 
 func (p *Profiler) profileTableCustomColumnsChannel(tableDef TableDefinition, profileID int, c chan error) {
@@ -129,13 +123,11 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 		return err
 	}
 
-	//TODO - Group the types by the def and names and send the full thing to profile func
 	columnsData, err := rows.ColumnTypes()
 	if err != nil {
 		return err
 	}
 
-	//TODO - make this do a lookup by column name instead
 	//Setup profile value pointers so we can scan into the array
 	//we make the assumption that results return in the order of selects here
 	profileValues := make([]interface{}, len(columnsData))
@@ -226,7 +218,6 @@ func (p *Profiler) profileTable(tableName string, profileID int) error {
 }
 
 func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, columnsData []*sql.ColumnType) error {
-	//TODO - this should happen outside of this context
 	tableNameID, err := p.profileStore.RegisterTable(tableName)
 	if err != nil {
 		return err
