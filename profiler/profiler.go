@@ -94,6 +94,7 @@ func (p *Profiler) waitForTableChannels(errChan chan error, totalResults int) er
 			break
 		}
 	}
+	return nil
 }
 
 func (p *Profiler) profileTableCustomColumnsChannel(tableDef TableDefinition, profileID int, c chan error) {
