@@ -1,7 +1,7 @@
 package profiler
 
 import (
-	"reflect"
+	
 	"database/sql"
 	"fmt"
 	"strings"
