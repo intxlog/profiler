@@ -26,7 +26,7 @@ func test() {
 	p := profiler.NewProfiler(t, pConn)
 
 	profile := profiler.ProfileDefinition{
-		FullProfileTables: []string{"loads"},
+		// FullProfileTables: []string{"loads"},
 		CustomProfileTables: []profiler.TableDefinition{
 			profiler.TableDefinition{
 				TableName: "loads",

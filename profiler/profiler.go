@@ -1,6 +1,7 @@
 package profiler
 
 import (
+	"reflect"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -131,16 +132,22 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 
 	//Setup profile value pointers so we can scan into the array
 	//we make the assumption that results return in the order of selects here
-	profileValues := make([]interface{}, len(columnsData))
 	profileValuePointers := make([]interface{}, len(columnsData))
-	for idx := range profileValues {
-		profileValuePointers[idx] = &profileValues[idx]
+	for idx := range profileValuePointers {
+		profileValuePointers[idx] = new(interface{})
 	}
 
 	if rows.Next() {
 		rows.Scan(profileValuePointers...)
 	} else {
 		return fmt.Errorf(`failed to get results from query`)
+	}
+
+	//Now that we tricked it to accepting interface pointers, cast back to pointers and get vals
+	//assigning to new array just for readability, could go to the same one though
+	profileValues := []interface{}{}
+	for idx := range profileValuePointers {
+		profileValues = append(profileValues, *(profileValuePointers[idx].(*interface{})))
 	}
 
 	for idx, columnData := range columnsData {
@@ -162,8 +169,7 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 		if err != nil {
 			return err
 		}
-
-		err = p.profileStore.StoreCustomColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileValuePointers[idx])
+		err = p.profileStore.StoreCustomColumnProfileData(columnNamesID, columnData, profileID, profileValues[idx])
 		if err != nil {
 			return err
 		}
@@ -309,4 +315,17 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 	}
 
 	return p.profileStore.StoreColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileResults)
+}
+
+
+var floatType = reflect.TypeOf(float64(0))
+
+func getFloat(unk interface{}) (float64, error) {
+    v := reflect.ValueOf(unk)
+    v = reflect.Indirect(v)
+    if !v.Type().ConvertibleTo(floatType) {
+        return 0, fmt.Errorf("cannot convert %v to float64", v.Type())
+    }
+    fv := v.Convert(floatType)
+    return fv.Float(), nil
 }

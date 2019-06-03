@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+	"reflect"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -77,7 +79,11 @@ func (p *PostgresConn) CreateTable(tableName string, columns []DBColumnDefinitio
 
 	columnItems := []string{}
 	for _, col := range columns {
-		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, col.ColumnType))
+		columnSQLType, err := p.convertTypeToSQLType(col.ColumnType)
+		if err != nil{
+			return err
+		}
+		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, columnSQLType))
 	}
 
 	columnQuery := strings.Join(columnItems, `,`)
@@ -106,7 +112,7 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 		return false, err
 	}
 
-	query := fmt.Sprintf(`SELECT %s FROM %s LIMIT 1`, columnName, tableName)
+	query := fmt.Sprintf(`select %s from %s limit 1`, columnName, tableName)
 
 	row := conn.QueryRow(query)
 
@@ -264,7 +270,7 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	}
 
 	row := conn.QueryRow(
-		`SELECT datname FROM pg_catalog.pg_database WHERE datname = $1;`,
+		`select datname from pg_catalog.pg_database where datname = $1;`,
 		dbName,
 	)
 
@@ -275,4 +281,29 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	}
 
 	return name == dbName, nil
+}
+
+func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, error){
+	switch dataType.Kind(){
+	case reflect.Int, reflect.Int32, reflect.Int64:
+		return `int`, nil
+	case reflect.String:
+		return `text`, nil
+	case reflect.Struct:
+		if isSameStructType(dataType, time.Time{}) {
+			return `timestamptz`, nil
+		}
+	case reflect.Slice:
+		sliceType := dataType.Elem().Kind()
+		if sliceType == reflect.Uint8 { 
+			return `numeric`, nil
+		}	
+	default:
+		fmt.Printf("\nunable to find a sql type for %v", dataType.Kind())
+	}
+	return ``, fmt.Errorf(`no defined sql type for reflect type of %v`, dataType)
+}
+
+func isSameStructType(dataType reflect.Type, compareInterface interface{}) bool{
+	return dataType == reflect.TypeOf(compareInterface)
 }
