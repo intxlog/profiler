@@ -316,16 +316,3 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 
 	return p.profileStore.StoreColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileResults)
 }
-
-
-var floatType = reflect.TypeOf(float64(0))
-
-func getFloat(unk interface{}) (float64, error) {
-    v := reflect.ValueOf(unk)
-    v = reflect.Indirect(v)
-    if !v.Type().ConvertibleTo(floatType) {
-        return 0, fmt.Errorf("cannot convert %v to float64", v.Type())
-    }
-    fv := v.Convert(floatType)
-    return fv.Float(), nil
-}

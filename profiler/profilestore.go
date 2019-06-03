@@ -14,7 +14,7 @@ import (
 //This is a db wrapper essentially
 type ProfileStore struct {
 	dbConn      db.DBConn
-	tablesHaveBeenRenamed bool
+	tablesHaveBeenCreated bool
 	mux         sync.Mutex
 }
 
@@ -27,7 +27,7 @@ type ColumnProfileData struct {
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
 	p := &ProfileStore{
 		dbConn:      dbConn,
-		tablesHaveBeenRenamed: false,
+		tablesHaveBeenCreated: false,
 	}
 	if err := p.ScaffoldProfileStore(); err != nil {
 		panic(err)
@@ -77,7 +77,7 @@ func (p *ProfileStore) ScaffoldProfileStore() error {
 		return err
 	}
 
-	p.tablesHaveBeenRenamed = true
+	p.tablesHaveBeenCreated = true
 	return nil
 
 }

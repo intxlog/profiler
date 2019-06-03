@@ -51,16 +51,3 @@ type DBColumnDefinition struct {
 	ColumnName string
 	ColumnType reflect.Type
 }
-
-//Converts a [string]string map to an array of db column definitions
-// func ConvertMapToColumnDefinitions(defs map[string]string) []DBColumnDefinition {
-// 	ret := []DBColumnDefinition{}
-// 	for col, colType := range defs {
-// 		ret = append(ret, DBColumnDefinition{
-// 			ColumnName: col,
-// 			ColumnType: colType,
-// 		})
-// 	}
-
-// 	return ret
-// }
