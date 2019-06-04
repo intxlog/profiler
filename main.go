@@ -25,9 +25,10 @@ func test() {
 
 	options := profiler.ProfilerOptions{
 		UsePascalCase: false,
+		ThrowNullProfileError: true,
 	}
 
-	p := profiler.NewProfiler(t, pConn, options)
+	p := profiler.NewProfilerWithOptions(t, pConn, options)
 
 	profile := profiler.ProfileDefinition{
 		FullProfileTables: []string{"users"},
