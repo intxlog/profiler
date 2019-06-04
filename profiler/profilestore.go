@@ -198,48 +198,76 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 //Creates a new profile entry and returns the profile id
 func (p *ProfileStore) NewProfile() (int, error) {
-	return p.getOrInsertTableRowID(PROFILE_RECORDS, map[string]interface{}{
-		"profile_date": time.Now(),
+	return p.getOrInsertTableRowIDFromStruct(ProfileRecord{
+		ProfileDate: time.Now(),
 	})
 }
 
 func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnTypeID int, columnName string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_COLUMN_NAMES, map[string]interface{}{
-		"table_name_id":        tableNameID,
-		"table_column_name":    columnName,
-		"table_column_type_id": columnTypeID,
+	return p.getOrInsertTableRowIDFromStruct(TableColumnName{
+		TableNameID: tableNameID,
+		TableColumnName: columnName,
+		TableColumnTypeID: columnTypeID,
 	})
 }
 
 func (p *ProfileStore) RegisterTableCustomColumn(tableNameID int, columnTypeID int, columnName string, columnDefinition string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_CUSTOM_COLUMN_NAMES, map[string]interface{}{
-		"table_name_id":                  tableNameID,
-		"table_column_name":              columnName,
-		"table_column_type_id":           columnTypeID,
-		"table_custom_column_definition": columnDefinition,
+	return p.getOrInsertTableRowIDFromStruct(TableCustomColumnName{
+		TableNameID: tableNameID,
+		TableColumnName: columnName,
+		TableColumnTypeID: columnTypeID,
+		CustomColumnDefinition: columnDefinition,
 	})
 }
 
 func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_NAMES, map[string]interface{}{
-		"table_name": tableName,
+	return p.getOrInsertTableRowIDFromStruct(TableName{
+		TableName: tableName,
 	})
 }
 
 func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	return p.getOrInsertTableRowID(TABLE_COLUMN_TYPES, map[string]interface{}{
-		"table_column_type": columnDataType,
+	return p.getOrInsertTableRowIDFromStruct(TableColumnType{
+		TableColumnType: columnDataType,
 	})
 }
 
 func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, profileID int) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_PROFILES, map[string]interface{}{
-		"table_name_id":     tableNameID,
-		"table_row_count":   rowCount,
-		"profile_record_id": profileID,
+	return p.getOrInsertTableRowIDFromStruct(TableProfile{
+		TableNameID: tableNameID,
+		TableRowCount: rowCount,
+		ProfileRecordID: profileID,
 	})
+}
+
+//Converts the struct to the params needed for getOrInsertTableRowID
+//uses tag data, excludes primary key field
+func (p *ProfileStore) getOrInsertTableRowIDFromStruct(tableStruct interface{}) (int, error) {
+	tableName, err := p.getTableNameFromStruct(tableStruct)
+	if err != nil{
+		return 0, err
+	}
+
+	columnDataMap := map[string]interface{}{}
+
+	fieldValues := reflect.ValueOf(tableStruct)	//for value references below
+	fields := reflect.TypeOf(tableStruct)
+	for i := 0; i < fields.NumField(); i++ {
+		field := fields.Field(i)
+		columnName, hasColumnName := field.Tag.Lookup(`db`)
+		if hasColumnName {
+			primaryKey, hasPrimaryKey := field.Tag.Lookup(`primaryKey`)
+			if hasPrimaryKey && primaryKey == `true`{
+				continue	//exclude primary key
+			} else {
+				columnDataMap[p.handleNamingConvention(columnName)] = fieldValues.Field(i).Interface()
+			}		
+		}
+	}
+
+	return p.getOrInsertTableRowID(tableName, columnDataMap)
 }
 
 func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
