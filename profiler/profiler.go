@@ -329,7 +329,6 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 		profileResults = append(profileResults, ColumnProfileData{
 			data:     val,
 			name:     profileColumnData[idx].Name(),
-			dbDataType: profileColumnData[idx].DatabaseTypeName(),
 			scanType: profileColumnData[idx].ScanType(),
 		})
 	}

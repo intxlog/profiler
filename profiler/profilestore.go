@@ -23,7 +23,6 @@ type ProfileStore struct {
 type ColumnProfileData struct {
 	data     interface{}
 	name     string
-	dbDataType string
 	scanType reflect.Type
 }
 
