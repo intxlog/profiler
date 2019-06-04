@@ -1,6 +1,7 @@
 package profiler
 
 import (
+	"reflect"
 	
 	"database/sql"
 	"fmt"
@@ -319,11 +320,14 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 
 	profileResults := []ColumnProfileData{}
 	for idx, val := range profileValues {
-		profileResults = append(profileResults, ColumnProfileData{
-			data:     val,
-			name:     profileColumnData[idx].Name(),
-			dataType: profileColumnData[idx].DatabaseTypeName(),
-		})
+		//Skip a profile if there is no value
+		if reflect.TypeOf(val) != nil {
+			profileResults = append(profileResults, ColumnProfileData{
+				data:     val,
+				name:     profileColumnData[idx].Name(),
+				dataType: profileColumnData[idx].DatabaseTypeName(),
+			})
+		}
 	}
 
 	return p.profileStore.StoreColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileResults)

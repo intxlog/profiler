@@ -39,7 +39,7 @@ func (p *PostgresConn) GetSelectSingle(tableName string, selects []string) (*sql
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return conn.Query(qry)
 }
 
@@ -49,7 +49,7 @@ func (p *PostgresConn) GetSelectAllColumnsSingle(tableName string) (*sql.Rows, e
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return conn.Query(qry)
 }
 
@@ -116,7 +116,7 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 
 	row := conn.QueryRow(query)
 
-	var name string
+	var name interface{}
 	err = row.Scan(&name)
 	if err != nil {
 		return false, err
@@ -131,10 +131,14 @@ func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinitio
 		return err
 	}
 
+	dataType,err := p.convertTypeToSQLType(column.ColumnType)
+	if err != nil{
+		return err
+	}
+
 	query := `alter table %s add column %s %s;`
-
-	query = fmt.Sprintf(query, tableName, column.ColumnName, column.ColumnType)
-
+	query = fmt.Sprintf(query, tableName, column.ColumnName, dataType)
+	
 	_, err = conn.Exec(query)
 	return err
 }
@@ -201,7 +205,7 @@ func (p *PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.R
 	if err != nil {
 		panic(err)
 	}
-
+	
 	return conn.Query(query)
 }
 
@@ -229,7 +233,7 @@ func (p *PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wh
 	if err != nil {
 		panic(err)
 	}
-
+	
 	return conn.Query(query, whereValues...)
 }
 
