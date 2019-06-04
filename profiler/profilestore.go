@@ -97,16 +97,9 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 		ColumnType: reflect.TypeOf(0),
 	})
 
-	//Get the profile value type
-	profileValueType := columnType.ScanType()
-	//If we have a non-null value, defer to the actual value type
-	if profileValue != nil {
-		profileValueType = reflect.TypeOf(profileValue)
-	}
-
 	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 		ColumnName: `value`,
-		ColumnType: profileValueType,
+		ColumnType: p.resolveDataType(profileValue, columnType.ScanType()),
 	})
 
 	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
@@ -151,13 +144,9 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 		ColumnType: reflect.TypeOf(0),
 	})
 	for _, data := range profileResults {
-		dataScanType := data.scanType
-		if data.data != nil {
-			dataScanType = reflect.TypeOf(data.data)
-		}
 		columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 			ColumnName: data.name,
-			ColumnType: dataScanType,
+			ColumnType: p.resolveDataType(data.data, data.scanType),
 		})
 	}
 
@@ -180,13 +169,9 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 			//if column does not exist then create it
 			if !columnExists {
-				dataScanType := data.scanType
-				if data.data != nil {
-					dataScanType = reflect.TypeOf(data.data)
-				}
 				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
 					ColumnName: columnName,
-					ColumnType: dataScanType,
+					ColumnType: p.resolveDataType(data.data, data.scanType),
 				})
 				if err != nil {
 					return err
@@ -403,4 +388,14 @@ func (p *ProfileStore) convertSnakeCaseToPascalCase(name string) string {
 	name = strings.ReplaceAll(name, ` `, ``)
 
 	return name
+}
+
+//Tries to resolve the data type from the provided interface
+//If the data is nil, then fall back to the db scan type provided
+func (p *ProfileStore) resolveDataType(data interface{}, dbScanType reflect.Type) reflect.Type {
+	if data != nil {
+		return reflect.TypeOf(data)
+	}
+
+	return dbScanType
 }
