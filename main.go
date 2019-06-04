@@ -30,11 +30,11 @@ func test() {
 	p := profiler.NewProfilerWithOptions(t, pConn, options)
 
 	profile := profiler.ProfileDefinition{
-		FullProfileTables: []string{"users"},
+		// FullProfileTables: []string{"users"},
 		CustomProfileTables: []profiler.TableDefinition{
 			profiler.TableDefinition{
 				TableName: "loads",
-				Columns:   []string{},
+				Columns:   []string{"*"},
 				CustomColumns: []profiler.CustomColumnDefition{
 					profiler.CustomColumnDefition{
 						ColumnName:       "tripmilesmin",

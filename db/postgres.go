@@ -292,7 +292,7 @@ func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, erro
 		return ``, fmt.Errorf(`data type is a nil pointer, this is likely due to a null value which cannot be interpreted to a data type`)
 	}
 	switch dataType.Kind(){
-	case reflect.Int, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return `int`, nil
 	case reflect.String:
 		return `text`, nil

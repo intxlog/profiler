@@ -97,9 +97,16 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 		ColumnType: reflect.TypeOf(0),
 	})
 
+	//Get the profile value type
+	profileValueType := columnType.ScanType()
+	//If we have a non-null value, defer to the actual value type
+	if profileValue != nil {
+		profileValueType = reflect.TypeOf(profileValue)
+	}
+
 	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 		ColumnName: `value`,
-		ColumnType: columnType.ScanType(),
+		ColumnType: profileValueType,
 	})
 
 	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
@@ -144,9 +151,13 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 		ColumnType: reflect.TypeOf(0),
 	})
 	for _, data := range profileResults {
+		dataScanType := data.scanType
+		if data.data != nil {
+			dataScanType = reflect.TypeOf(data.data)
+		}
 		columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 			ColumnName: data.name,
-			ColumnType: data.scanType,
+			ColumnType: dataScanType,
 		})
 	}
 
@@ -169,9 +180,13 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 			//if column does not exist then create it
 			if !columnExists {
+				dataScanType := data.scanType
+				if data.data != nil {
+					dataScanType = reflect.TypeOf(data.data)
+				}
 				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
 					ColumnName: columnName,
-					ColumnType: data.scanType,
+					ColumnType: dataScanType,
 				})
 				if err != nil {
 					return err
