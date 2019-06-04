@@ -284,6 +284,9 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 }
 
 func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, error){
+	if dataType == nil{
+		return ``, fmt.Errorf(`data type is a nil pointer, this is likely due to a null value which cannot be interpreted to a data type`)
+	}
 	switch dataType.Kind(){
 	case reflect.Int, reflect.Int32, reflect.Int64:
 		return `int`, nil
