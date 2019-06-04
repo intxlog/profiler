@@ -23,14 +23,18 @@ func test() {
 	pConnStr := os.Args[2]
 	pConn := db.NewPostgresConn(pConnStr)
 
-	p := profiler.NewProfiler(t, pConn)
+	options := profiler.ProfilerOptions{
+		UsePascalCase: false,
+	}
+
+	p := profiler.NewProfiler(t, pConn, options)
 
 	profile := profiler.ProfileDefinition{
-		// FullProfileTables: []string{"loads"},
+		FullProfileTables: []string{"users"},
 		CustomProfileTables: []profiler.TableDefinition{
 			profiler.TableDefinition{
 				TableName: "loads",
-				Columns:   []string{"*"},
+				Columns:   []string{},
 				CustomColumns: []profiler.CustomColumnDefition{
 					profiler.CustomColumnDefition{
 						ColumnName:       "tripmilesmin",

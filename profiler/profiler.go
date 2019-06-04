@@ -15,13 +15,25 @@ type Profiler struct {
 	profileStore  *ProfileStore
 }
 
+type ProfilerOptions struct{
+	UsePascalCase bool
+}
+
 //Returns a new Profiler
-func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn) *Profiler {
-	return &Profiler{
+func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn, options ProfilerOptions) *Profiler {
+	profiler := &Profiler{
 		targetDBConn:  targetDBConn,
 		profileDBConn: profileDBConn,
 		profileStore:  NewProfileStore(profileDBConn),
 	}
+
+	profiler.profileStore.UsePascalCase = options.UsePascalCase
+
+	if err := profiler.profileStore.ScaffoldProfileStore(); err != nil {
+		panic(err)
+	}
+
+	return profiler
 }
 
 //Run profiles on all provided tables and store
@@ -296,7 +308,7 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 	//Setup profile value pointers so we can scan into the array
 	profileValues := make([]interface{}, len(profileColumnData))
 	profileValuePointers := make([]interface{}, len(profileColumnData))
-	for idx, _ := range profileValues {
+	for idx := range profileValues {
 		profileValuePointers[idx] = &profileValues[idx]
 	}
 

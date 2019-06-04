@@ -1,6 +1,7 @@
 package profiler
 
 import (
+	"strings"
 	"database/sql"
 	"reflect"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 //ProfileStore is used to store all the profile data that the profiler generates.
 //This is a db wrapper essentially
 type ProfileStore struct {
+	UsePascalCase bool
 	dbConn      db.DBConn
 	tablesHaveBeenCreated bool
 	mux         sync.Mutex
@@ -26,15 +28,11 @@ type ColumnProfileData struct {
 
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
 	p := &ProfileStore{
+		UsePascalCase: false,
 		dbConn:      dbConn,
 		tablesHaveBeenCreated: false,
 	}
-	if err := p.ScaffoldProfileStore(); err != nil {
-		panic(err)
-	}
-
 	return p
-
 }
 
 //Ensures the core profile db data stores are built
@@ -104,6 +102,8 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 		ColumnType: reflect.TypeOf(profileValue),
 	})
 
+	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
+
 	//error here just means does not exist
 	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
 
@@ -119,6 +119,8 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 		PROFILE_RECORD_ID:           profileID,
 		`value`:                     profileValue,
 	}
+
+	columnData = p.handleColumnDataNamingConvention(columnData)
 
 	//At this point the table and columns exist, so insert data
 	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
@@ -148,6 +150,9 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 		})
 	}
 
+	//Convert casing if we need to
+	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
+
 	//error here just means does not exist
 	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
 
@@ -159,12 +164,13 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 	} else {
 		//Table exists so just make sure each column exists
 		for _, data := range profileResults {
-			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, data.name)
+			columnName := p.handleNamingConvention(data.name)
+			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, columnName)
 
 			//if column does not exist then create it
 			if !columnExists {
 				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
-					ColumnName: data.name,
+					ColumnName: columnName,
 					ColumnType: reflect.TypeOf(data.data),
 				})
 				if err != nil {
@@ -181,6 +187,8 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 	for _, data := range profileResults {
 		columnData[data.name] = data.data
 	}
+
+	columnData = p.handleColumnDataNamingConvention(columnData)
 
 	//At this point the table and columns exist, so insert data
 	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
@@ -234,8 +242,11 @@ func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, profile
 	})
 }
 
-//TODO - this is stupid, redo it to not get everytime...
 func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
+	//fix naming conventions
+	tableName = p.handleNamingConvention(tableName)
+	values = p.handleColumnDataNamingConvention(values)
+
 	rows, err := p.dbConn.GetRowsSelectWhere(tableName, []string{`id`}, values)
 	if err != nil {
 		return 0, err
@@ -253,24 +264,24 @@ func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string
 	return id, nil
 }
 
-//TODO - check config for snake or pascal
 func (p *ProfileStore) getColumnProfileTableName(columnDataType string) string {
-	return fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+	name := fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+	return p.handleNamingConvention(name)
 }
 
-//TODO - check config for snake or pascal
 func (p *ProfileStore) getCustomColumnProfileTableName(columnDataType string) string {
-	return fmt.Sprintf(`%s%s`, TABLE_CUSTOM_COLUMN_PROFILE_PREFIX, columnDataType)
+	name := fmt.Sprintf(`%s%s`, TABLE_CUSTOM_COLUMN_PROFILE_PREFIX, columnDataType)
+	return p.handleNamingConvention(name)
 }
 
 //Creates a table for the profile store table struct if not exists
 func (p *ProfileStore) createTableForProfileStoreTableStruct(tableStruct interface{}) error {
-	tableName, err := getTableNameFromStruct(tableStruct)
+	tableName, err := p.getTableNameFromStruct(tableStruct)
 	if err != nil{
 		return err
 	}
 
-	definitions, err := getColumnDataFromStructExcludePrimaryKey(tableStruct)
+	definitions, err := p.getColumnDataFromStructExcludePrimaryKey(tableStruct)
 	if err != nil {
 		return err
 	}
@@ -278,25 +289,23 @@ func (p *ProfileStore) createTableForProfileStoreTableStruct(tableStruct interfa
 	return p.dbConn.CreateTableIfNotExists(tableName, definitions)
 }
 
-//TODO - look for a config value to set as snake case or pascal case!
 //Takes a struct and looks for a table tag on a field
 //returns the string of the tag or error if none found
-func getTableNameFromStruct(tableStruct interface{}) (string, error){
+func (p *ProfileStore) getTableNameFromStruct(tableStruct interface{}) (string, error){
 	fields := reflect.TypeOf(tableStruct)
 	for i := 0; i < fields.NumField(); i++ {
 		field := fields.Field(i)
 		tableName, ok := field.Tag.Lookup(`table`)
 		if ok {
-			return tableName, nil			
+			return p.handleNamingConvention(tableName), nil			
 		}
 	}
 	return ``, fmt.Errorf(`no table tag found on struct %v`, tableStruct)
 }
 
-//TODO - look at config for snake or pascal case
 //Returns array of db column definitions using the db and primaryKey tags.
 //Excludes the primary key from the column definitions
-func getColumnDataFromStructExcludePrimaryKey(tableStruct interface{}) ([]db.DBColumnDefinition, error){
+func (p *ProfileStore) getColumnDataFromStructExcludePrimaryKey(tableStruct interface{}) ([]db.DBColumnDefinition, error){
 	definitions := []db.DBColumnDefinition{}
 
 	fields := reflect.TypeOf(tableStruct)
@@ -309,7 +318,7 @@ func getColumnDataFromStructExcludePrimaryKey(tableStruct interface{}) ([]db.DBC
 				continue	//exclude primary key
 			} else {
 				definitions = append(definitions, db.DBColumnDefinition{
-					ColumnName: columnName,
+					ColumnName: p.handleNamingConvention(columnName),
 					ColumnType: field.Type,
 				})
 			}		
@@ -317,4 +326,38 @@ func getColumnDataFromStructExcludePrimaryKey(tableStruct interface{}) ([]db.DBC
 	}
 
 	return definitions, nil
+}
+
+func (p *ProfileStore) handleColumnDataNamingConvention(data map[string]interface{}) map[string]interface{} {
+	fixedData := map[string]interface{}{}
+	for key := range data {
+		fixedData[p.handleNamingConvention(key)] = data[key]
+	}
+	return fixedData
+}
+
+func (p *ProfileStore) handleDBColumnDefinitionArrNamingConvention(definitions []db.DBColumnDefinition) []db.DBColumnDefinition {
+	for idx := range definitions {
+		definitions[idx].ColumnName = p.handleNamingConvention(definitions[idx].ColumnName)
+	}
+	return definitions
+}
+
+func (p *ProfileStore) handleNamingConvention(name string) string {
+	if p.UsePascalCase {
+		return p.convertSnakeCaseToPascalCase(name)
+	}
+	return name
+}
+
+func (p *ProfileStore) convertSnakeCaseToPascalCase(name string) string {
+	if !strings.ContainsAny(`_`, name) {
+		return name
+	}
+
+	name = strings.ReplaceAll(name, `_`, ` `)
+	name = strings.Title(name)
+	name = strings.ReplaceAll(name, ` `, ``)
+
+	return name
 }
