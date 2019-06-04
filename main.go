@@ -25,7 +25,6 @@ func test() {
 
 	options := profiler.ProfilerOptions{
 		UsePascalCase: false,
-		ThrowNullProfileError: true,
 	}
 
 	p := profiler.NewProfilerWithOptions(t, pConn, options)

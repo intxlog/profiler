@@ -1,7 +1,6 @@
 package profiler
 
 import (
-	"reflect"
 	
 	"database/sql"
 	"fmt"
@@ -14,12 +13,10 @@ type Profiler struct {
 	targetDBConn  db.DBConn
 	profileDBConn db.DBConn
 	profileStore  *ProfileStore
-	throwNullProfileError bool
 }
 
 type ProfilerOptions struct{
 	UsePascalCase bool
-	ThrowNullProfileError bool //if true then throw an error when a profile returns null, otherwise just skip it
 }
 
 // NewProfiler returns a new profiler with default options for the specified databases
@@ -36,8 +33,6 @@ func NewProfilerWithOptions(targetDBConn db.DBConn, profileDBConn db.DBConn, opt
 		profileDBConn: profileDBConn,
 		profileStore:  NewProfileStore(profileDBConn),
 	}
-
-	profiler.throwNullProfileError = options.ThrowNullProfileError
 
 	profiler.profileStore.UsePascalCase = options.UsePascalCase
 
@@ -331,18 +326,12 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 
 	profileResults := []ColumnProfileData{}
 	for idx, val := range profileValues {
-		//Skip a profile if there is no value
-		if reflect.TypeOf(val) != nil {
-			profileResults = append(profileResults, ColumnProfileData{
-				data:     val,
-				name:     profileColumnData[idx].Name(),
-				dataType: profileColumnData[idx].DatabaseTypeName(),
-			})
-		} else if p.throwNullProfileError {
-			return fmt.Errorf(`error: '%v' resulted in a null value and cannot be cast to a type, if you don't want this to throw an error please set the 'ThrowNullProfileError' option to false`,
-				profileColumnData[idx].Name(),
-			)
-		}
+		profileResults = append(profileResults, ColumnProfileData{
+			data:     val,
+			name:     profileColumnData[idx].Name(),
+			dbDataType: profileColumnData[idx].DatabaseTypeName(),
+			scanType: profileColumnData[idx].ScanType(),
+		})
 	}
 
 	return p.profileStore.StoreColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileResults)

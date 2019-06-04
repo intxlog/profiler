@@ -23,7 +23,8 @@ type ProfileStore struct {
 type ColumnProfileData struct {
 	data     interface{}
 	name     string
-	dataType string
+	dbDataType string
+	scanType reflect.Type
 }
 
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
@@ -99,7 +100,7 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 
 	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 		ColumnName: `value`,
-		ColumnType: reflect.TypeOf(profileValue),
+		ColumnType: columnType.ScanType(),
 	})
 
 	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
@@ -146,7 +147,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 	for _, data := range profileResults {
 		columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
 			ColumnName: data.name,
-			ColumnType: reflect.TypeOf(data.data),
+			ColumnType: data.scanType,
 		})
 	}
 
@@ -171,7 +172,7 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 			if !columnExists {
 				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
 					ColumnName: columnName,
-					ColumnType: reflect.TypeOf(data.data),
+					ColumnType: data.scanType,
 				})
 				if err != nil {
 					return err
