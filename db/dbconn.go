@@ -1,9 +1,13 @@
 package db
 
 import (
+	"fmt"
 	"reflect"
 	"database/sql"
 )
+
+//Connection type for postgres db
+const DB_CONN_POSTGRES = `postgres`
 
 //Struct to house the required methods for use in profiler
 type DBConn interface {
@@ -47,7 +51,20 @@ type DBConn interface {
 	GetTableRowCount(tableName string) (int, error)
 }
 
+
 type DBColumnDefinition struct {
 	ColumnName string
 	ColumnType reflect.Type
+}
+
+func GetDBConnByType(dbType string, dbConnString string) (DBConn, error){
+	if dbConnString == "" {
+		return nil, fmt.Errorf(`database connection string is required`)
+	}
+	switch dbType{
+	case DB_CONN_POSTGRES:
+		return NewPostgresConn(dbConnString), nil
+	default:
+		return nil, fmt.Errorf(`target database connection type not found, looking for %v`, dbType)
+	}
 }

@@ -16,15 +16,12 @@ func main() {
 	run()
 }
 
-//Connection type for postgres db
-const DB_CONN_POSTGRES = `postgres`
-
 func run() {
 	log.Println("Preparing profiler")
-	targetConnDBType := flag.String("targetDBType", DB_CONN_POSTGRES, "Target database type")
+	targetConnDBType := flag.String("targetDBType", db.DB_CONN_POSTGRES, "Target database type")
 	targetConnString := flag.String("targetDB", "", "Target database connection string")
 
-	profileConnDBType := flag.String("profileDBType", DB_CONN_POSTGRES, "Profile database type")
+	profileConnDBType := flag.String("profileDBType", db.DB_CONN_POSTGRES, "Profile database type")
 	profileConnString := flag.String("profileDB", "", "Profile store database connection string")
 
 	profileDefinitionPath := flag.String("profileDefinition", "", "Path to profile definition JSON file")
@@ -33,12 +30,12 @@ func run() {
 	
 	flag.Parse()
 
-	targetCon, err := getDBConnByType(*targetConnDBType, *targetConnString)
+	targetCon, err := db.GetDBConnByType(*targetConnDBType, *targetConnString)
 	if err != nil{
 		log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
 	}
 
-	profileCon, err := getDBConnByType(*profileConnDBType, *profileConnString)
+	profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
 	if err != nil{
 		log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
 	}
@@ -76,14 +73,4 @@ func run() {
 	log.Printf("Finished... time taken: %v\n", end.Sub(start))
 }
 
-func getDBConnByType(dbType string, dbConnString string) (db.DBConn, error){
-	if dbConnString == "" {
-		return nil, fmt.Errorf(`database connection string is required`)
-	}
-	switch dbType{
-	case DB_CONN_POSTGRES:
-		return db.NewPostgresConn(dbConnString), nil
-	default:
-		return nil, fmt.Errorf(`target database connection type not found, looking for %v`, dbType)
-	}
-}
+

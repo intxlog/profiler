@@ -72,6 +72,7 @@ For usage in a Go program, you can create a `profiler.ProfilerOptions` type with
 Profiler currently works with the following databases:
 - Postgres
 
+## Adding support for a database
 To add your own database wrapper for Profiler, you must do the following:
 - Create a database wrapper under the `db` package that implements the `DBConn` interface.
 - Add a new constant for the database type to `main.go`.
