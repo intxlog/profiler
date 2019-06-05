@@ -20,7 +20,7 @@ func main() {
 const DB_CONN_POSTGRES = `postgres`
 
 func run() {
-	fmt.Println("Preparing profiler")
+	log.Println("Preparing profiler")
 	targetConnDBType := flag.String("targetDBType", DB_CONN_POSTGRES, "Target database type")
 	targetConnString := flag.String("targetDB", "", "Target database connection string")
 
@@ -59,7 +59,7 @@ func run() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Starting profile...\n")
+	log.Printf("Starting profile...\n")
 	start := time.Now()
 
 	p := profiler.NewProfilerWithOptions(targetCon, profileCon, options)
@@ -73,7 +73,7 @@ func run() {
 	}
 
 	end := time.Now()
-	fmt.Printf("Finished... time taken: %v\n", end.Sub(start))
+	log.Printf("Finished... time taken: %v\n", end.Sub(start))
 }
 
 func getDBConnByType(dbType string, dbConnString string) (db.DBConn, error){
