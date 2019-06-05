@@ -1,7 +1,7 @@
 # Profiler
 
 ## What is it
-Sketch is a SQL profiler utility written in _Go_.  It is designed to be used as either a library in an existing _Go_ project or as a standalone CLI tool.
+Profiler is a SQL profiler utility written in _Go_.  It is designed to be used as either a library in an existing _Go_ project or as a standalone CLI tool.
 
 It is quick to setup but highly configurable.
 
@@ -75,8 +75,8 @@ Profiler currently works with the following databases:
 ## Adding support for a database
 To add your own database wrapper for Profiler, you must do the following:
 - Create a database wrapper under the `db` package that implements the `DBConn` interface.
-- Add a new constant for the database type to `main.go`.
-- Update `main.go:getDBConnByType` to properly instantiate your database wrapper.
+- Add a new constant for the database type in the `db` package under `dbconn.go`.
+- Update `db.GetDBConnByType` to properly instantiate your database wrapper.
 
 ## Tips/Tricks
 ### Profiling Custom Tables or Views
