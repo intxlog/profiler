@@ -20,9 +20,7 @@ func main() {
 const DB_CONN_POSTGRES = `postgres`
 
 func run() {
-	fmt.Printf("Starting profile...\n")
-	start := time.Now()
-
+	fmt.Println("Preparing profiler")
 	targetConnDBType := flag.String("targetDBType", DB_CONN_POSTGRES, "Target database type")
 	targetConnString := flag.String("targetDB", "", "Target database connection string")
 
@@ -37,12 +35,12 @@ func run() {
 
 	targetCon, err := getDBConnByType(*targetConnDBType, *targetConnString)
 	if err != nil{
-		panic(fmt.Errorf(`error getting target database connection: %v`, err))
+		log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
 	}
 
 	profileCon, err := getDBConnByType(*profileConnDBType, *profileConnString)
 	if err != nil{
-		panic(fmt.Errorf(`error getting profile database connection: %v`, err))
+		log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
 	}
 
 	options := profiler.ProfilerOptions{
@@ -52,14 +50,17 @@ func run() {
 	//Read in the profile definition file
 	fileData, err := ioutil.ReadFile(*profileDefinitionPath)
 	if err != nil{
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var profile profiler.ProfileDefinition
 	err = json.Unmarshal(fileData, &profile)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+
+	fmt.Printf("Starting profile...\n")
+	start := time.Now()
 
 	p := profiler.NewProfilerWithOptions(targetCon, profileCon, options)
 
