@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io/ioutil"
+	"flag"
+	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"bitbucket.org/intxlog/profiler/db"
@@ -11,40 +13,57 @@ import (
 )
 
 func main() {
-	test()
+	run()
 }
 
-func test() {
+//Connection type for postgres db
+const DB_CONN_POSTGRES = `postgres`
+
+func run() {
 	fmt.Printf("Starting profile...\n")
 	start := time.Now()
-	connStr := os.Args[1]
-	t := db.NewPostgresConn(connStr)
 
-	pConnStr := os.Args[2]
-	pConn := db.NewPostgresConn(pConnStr)
+	targetConnDBType := flag.String("targetDBType", DB_CONN_POSTGRES, "Target database type")
+	targetConnString := flag.String("targetDB", "", "Target database connection string")
+
+	profileConnDBType := flag.String("profileDBType", DB_CONN_POSTGRES, "Profile database type")
+	profileConnString := flag.String("profileDB", "", "Profile store database connection string")
+
+	profileDefinitionPath := flag.String("profileDefinition", "", "Path to profile definition JSON file")
+
+	usePascalCase := flag.Bool("usePascalCase", false, "Use pascal case for table and column naming in profile database")
+	
+	flag.Parse()
+
+	targetCon, err := getDBConnByType(*targetConnDBType, *targetConnString)
+	if err != nil{
+		panic(fmt.Errorf(`error getting target database connection: %v`, err))
+	}
+
+	profileCon, err := getDBConnByType(*profileConnDBType, *profileConnString)
+	if err != nil{
+		panic(fmt.Errorf(`error getting profile database connection: %v`, err))
+	}
 
 	options := profiler.ProfilerOptions{
-		UsePascalCase: false,
+		UsePascalCase: *usePascalCase,
 	}
 
-	p := profiler.NewProfilerWithOptions(t, pConn, options)
-
-	profile := profiler.ProfileDefinition{
-		FullProfileTables: []string{"users"},
-		CustomProfileTables: []profiler.TableDefinition{
-			profiler.TableDefinition{
-				TableName: "loads",
-				Columns:   []string{"*"},
-				CustomColumns: []profiler.CustomColumnDefition{
-					profiler.CustomColumnDefition{
-						ColumnName:       "tripmilesmin",
-						ColumnDefinition: "min(tripmiles)",
-					},
-				},
-			},
-		},
+	//Read in the profile definition file
+	fileData, err := ioutil.ReadFile(*profileDefinitionPath)
+	if err != nil{
+		panic(err)
 	}
-	err := p.RunProfile(profile)
+
+	var profile profiler.ProfileDefinition
+	err = json.Unmarshal(fileData, &profile)
+	if err != nil {
+		panic(err)
+	}
+
+	p := profiler.NewProfilerWithOptions(targetCon, profileCon, options)
+
+	err = p.RunProfile(profile)
 
 	if err != nil {
 		log.Fatal(err)
@@ -53,5 +72,17 @@ func test() {
 	}
 
 	end := time.Now()
-	fmt.Printf("Finished... time taken: %v", end.Sub(start))
+	fmt.Printf("Finished... time taken: %v\n", end.Sub(start))
+}
+
+func getDBConnByType(dbType string, dbConnString string) (db.DBConn, error){
+	if dbConnString == "" {
+		return nil, fmt.Errorf(`database connection string is required`)
+	}
+	switch dbType{
+	case DB_CONN_POSTGRES:
+		return db.NewPostgresConn(dbConnString), nil
+	default:
+		return nil, fmt.Errorf(`target database connection type not found, looking for %v`, dbType)
+	}
 }
