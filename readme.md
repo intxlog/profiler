@@ -1,10 +1,40 @@
 # Profiler
 ![Profiler Logo](profiler_logo.png)
 
-## What is it
 Profiler is a SQL profiler utility written in _Go_.  It is designed to be used as either a library in an existing _Go_ project or as a standalone CLI tool.
 
 It is quick to setup but highly configurable.
+
+## Examples
+
+### Library Usage
+```
+//Setup the target database connection
+targetCon, err := db.GetDBConnByType(*targetConnDBType, *targetConnString)
+if err != nil{
+    log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
+}
+
+//Setup the profile database connection
+profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
+if err != nil{
+    log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
+}
+
+p := profiler.NewProfiler(targetCon, profileCon)
+
+//Define a profile definition
+profile := profiler.ProfileDefinition{
+    FullProfileTables: []string{"logs"},
+}
+
+err = p.RunProfile(profile)
+```
+
+### CLI Usage
+```
+./profiler -targetDB="postgres://user:pass@localhost:5432/targetdb" -targetDBType="postgres" -profileDB="postgres://user:pass@localhost:5432/profiledb" -profileDBType="postgres" -profileDefinition=path/to/definition.json
+```
 
 ## Setup
 Before running Profiler for the first time, you must create a database for the profile connection to use.  Profiler will not create the database itself, only the tables and columns.
@@ -71,35 +101,6 @@ For CLI usage, you can set the flag `usePascalCase` to true.
 For usage in a Go program, you can create a `profiler.ProfilerOptions` type with the `UsePascalCase` property set to true and pass this to `profiler.NewProfilerWithOptions`.
 
 **NOTE: If you already ran Profiler without setting this flag, you will end up with new tables in `PascalCase`!  You will have to either manually migrate the existing `snake_case` tables and fields or start fresh.**
-
-## Library Usage Example
-```
-//Setup the target database connection
-targetCon, err := db.GetDBConnByType(*targetConnDBType, *targetConnString)
-if err != nil{
-    log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
-}
-
-//Setup the profile database connection
-profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
-if err != nil{
-    log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
-}
-
-p := profiler.NewProfiler(targetCon, profileCon)
-
-//Define a profile definition
-profile := profiler.ProfileDefinition{
-    FullProfileTables: []string{"logs"},
-}
-
-err = p.RunProfile(profile)
-```
-
-## CLI Usage Example
-```
-./profiler -targetDB="postgres://user:pass@localhost:5432/targetdb" -targetDBType="postgres" -profileDB="postgres://user:pass@localhost:5432/profiledb" -profileDBType="postgres" -profileDefinition=path/to/definition.json
-```
 
 ## Database Compatibility
 Profiler currently works with the following databases:
