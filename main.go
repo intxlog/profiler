@@ -1,10 +1,10 @@
 package main
 
 import (
-	"io/ioutil"
-	"flag"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"time"
 
@@ -27,16 +27,16 @@ func run() {
 	profileDefinitionPath := flag.String("profileDefinition", "", "Path to profile definition JSON file")
 
 	usePascalCase := flag.Bool("usePascalCase", false, "Use pascal case for table and column naming in profile database")
-	
+
 	flag.Parse()
 
 	targetCon, err := db.GetDBConnByType(*targetConnDBType, *targetConnString)
-	if err != nil{
+	if err != nil {
 		log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
 	}
 
 	profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
-	if err != nil{
+	if err != nil {
 		log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
 	}
 
@@ -46,7 +46,7 @@ func run() {
 
 	//Read in the profile definition file
 	fileData, err := ioutil.ReadFile(*profileDefinitionPath)
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -72,5 +72,3 @@ func run() {
 	end := time.Now()
 	log.Printf("Finished... time taken: %v\n", end.Sub(start))
 }
-
-
