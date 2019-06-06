@@ -1,4 +1,5 @@
 # Profiler
+![Profiler Logo](profiler_logo.png)
 
 ## What is it
 Profiler is a SQL profiler utility written in _Go_.  It is designed to be used as either a library in an existing _Go_ project or as a standalone CLI tool.
@@ -88,3 +89,5 @@ Profiler does not generate constraints or indexes right now for the profile data
 ## TODO
 - Generating and profiling custom table views
 - Automatically building indexes and constraints
+- Define custom non-aggregate columns on a table to profile
+- Define generalized profiles by type via profile definition
