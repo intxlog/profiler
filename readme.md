@@ -80,25 +80,18 @@ if err != nil{
     log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
 }
 
-//setup the profile database connection
+//Setup the profile database connection
 profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
 if err != nil{
     log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
 }
 
-//Read in the profile definition file
-fileData, err := ioutil.ReadFile(*profileDefinitionPath)
-if err != nil{
-    log.Fatal(err)
-}
-
-var profile profiler.ProfileDefinition
-err = json.Unmarshal(fileData, &profile)
-if err != nil {
-    log.Fatal(err)
-}
-
 p := profiler.NewProfiler(targetCon, profileCon)
+
+//Define a profile definition
+profile := profiler.ProfileDefinition{
+    FullProfileTables: []string{"logs"},
+}
 
 err = p.RunProfile(profile)
 ```
