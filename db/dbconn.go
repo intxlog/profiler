@@ -1,6 +1,13 @@
 package db
 
-import "database/sql"
+import (
+	"fmt"
+	"reflect"
+	"database/sql"
+)
+
+//Connection type for postgres db
+const DB_CONN_POSTGRES = `postgres`
 
 //Struct to house the required methods for use in profiler
 type DBConn interface {
@@ -16,7 +23,7 @@ type DBConn interface {
 	//Checks if a table exists
 	DoesTableExist(tableName string) (bool, error)
 
-	//Creates a table with the specified colums and an "id" column as primary key if the table does not exist
+	//Creates a table with the specified colums and an "id" column as primary key
 	CreateTable(tableName string, columns []DBColumnDefinition) error
 
 	//Wrapper to check if table exists and if not create table
@@ -44,20 +51,20 @@ type DBConn interface {
 	GetTableRowCount(tableName string) (int, error)
 }
 
+
 type DBColumnDefinition struct {
 	ColumnName string
-	ColumnType string
+	ColumnType reflect.Type
 }
 
-//Converts a [string]string map to an array of db column definitions
-func ConvertMapToColumnDefinitions(defs map[string]string) []DBColumnDefinition {
-	ret := []DBColumnDefinition{}
-	for col, colType := range defs {
-		ret = append(ret, DBColumnDefinition{
-			ColumnName: col,
-			ColumnType: colType,
-		})
+func GetDBConnByType(dbType string, dbConnString string) (DBConn, error){
+	if dbConnString == "" {
+		return nil, fmt.Errorf(`database connection string is required`)
 	}
-
-	return ret
+	switch dbType{
+	case DB_CONN_POSTGRES:
+		return NewPostgresConn(dbConnString), nil
+	default:
+		return nil, fmt.Errorf(`target database connection type not found, looking for %v`, dbType)
+	}
 }

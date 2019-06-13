@@ -1,6 +1,9 @@
 package profiler
 
 import (
+	"strings"
+	"database/sql"
+	"reflect"
 	"fmt"
 	"sync"
 	"time"
@@ -8,145 +11,104 @@ import (
 	"bitbucket.org/intxlog/profiler/db"
 )
 
+//ProfileStore is used to store all the profile data that the profiler generates.
+//This is a db wrapper essentially
 type ProfileStore struct {
+	UsePascalCase bool
 	dbConn      db.DBConn
-	hasScaffold bool
+	tablesHaveBeenCreated bool
 	mux         sync.Mutex
 }
 
-const PROFILE_RECORDS = `profile_records`
-const TABLE_NAMES = `table_names`
-const TABLE_COLUMN_TYPES = `table_column_types`
-const TABLE_PROFILES = `table_profiles`
-const TABLE_COLUMN_NAMES = `table_column_names`
-const TABLE_COLUMN_PROFILE_PREFIX = `table_column_profiles_`
-const TABLE_COLUMN_NAME_ID = `table_column_name_id`
-const TABLE_COLUMN_NAME_ID_TYPE = `int`
-
-const PROFILE_RECORD_ID = `profile_record_id`
-const PROFILE_RECORD_ID_TYPE = `int`
-
-const TABLE_CUSTOM_COLUMN_NAME_ID = `table_column_name_id`
-const TABLE_CUSTOM_COLUMN_NAME_ID_TYPE = `int`
-const TABLE_CUSTOM_COLUMN_NAMES = `table_custom_column_names`
-const TABLE_CUSTOM_COLUMN_PROFILE_PREFIX = `table_custom_column_profiles_`
+type ColumnProfileData struct {
+	data     interface{}
+	name     string
+	scanType reflect.Type
+}
 
 func NewProfileStore(dbConn db.DBConn) *ProfileStore {
 	p := &ProfileStore{
+		UsePascalCase: false,
 		dbConn:      dbConn,
-		hasScaffold: false,
+		tablesHaveBeenCreated: false,
 	}
-	if err := p.ScaffoldProfileStore(); err != nil {
-		panic(err)
-	}
-
 	return p
-
 }
 
 //Ensures the core profile db data stores are built
 func (p *ProfileStore) ScaffoldProfileStore() error {
 
+	
 	//build profile runs table
-	err := p.dbConn.CreateTableIfNotExists(PROFILE_RECORDS,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"profile_date": "timestamp with time zone",
-			},
-		),
-	)
+	err := p.createTableForProfileStoreTableStruct(ProfileRecord{})
 	if err != nil {
 		return err
 	}
 
 	//build tables table
-	err = p.dbConn.CreateTableIfNotExists(TABLE_NAMES,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"table_name": "varchar",
-			},
-		),
-	)
+	err = p.createTableForProfileStoreTableStruct(TableName{})
 	if err != nil {
 		return err
 	}
 
 	//build table profiles table
-	err = p.dbConn.CreateTableIfNotExists(TABLE_PROFILES,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"table_name_id":     "int",
-				"table_row_count":   "int",
-				"profile_record_id": "int",
-			},
-		),
-	)
+	err = p.createTableForProfileStoreTableStruct(TableProfile{})
 	if err != nil {
 		return err
 	}
 
 	//build table columns table
-	err = p.dbConn.CreateTableIfNotExists(TABLE_COLUMN_NAMES,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"table_name_id":        "int",
-				"table_column_name":    "varchar",
-				"table_column_type_id": "int",
-			},
-		),
-	)
+	err = p.createTableForProfileStoreTableStruct(TableColumnName{})
 	if err != nil {
 		return err
 	}
 
 	//build table custom columns table
-	err = p.dbConn.CreateTableIfNotExists(TABLE_CUSTOM_COLUMN_NAMES,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"table_name_id":                  "int",
-				"table_column_name":              "varchar",
-				"table_column_type_id":           "int",
-				"table_custom_column_definition": "text",
-			},
-		),
-	)
+	err = p.createTableForProfileStoreTableStruct(TableCustomColumnName{})
 	if err != nil {
 		return err
 	}
 
 	//build table column types table
-	err = p.dbConn.CreateTableIfNotExists(TABLE_COLUMN_TYPES,
-		db.ConvertMapToColumnDefinitions(
-			map[string]string{
-				"table_column_type": "varchar",
-			},
-		),
-	)
+	err = p.createTableForProfileStoreTableStruct(TableColumnType{})
 	if err != nil {
 		return err
 	}
 
-	p.hasScaffold = true
+	p.tablesHaveBeenCreated = true
 	return nil
 
 }
 
 //Stores the custom column profile data, scaffolds the custom profile table for the value type if needed
-func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnType string, profileID int, profileValue interface{}) error {
+func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnType *sql.ColumnType, profileID int, profileValue interface{}) error {
 
-	profileTable := p.getCustomColumnProfileTableName(columnType)
+	profileTable := p.getCustomColumnProfileTableName(columnType.DatabaseTypeName())
 
-	columnsMap := map[string]string{
-		TABLE_CUSTOM_COLUMN_NAME_ID: TABLE_CUSTOM_COLUMN_NAME_ID_TYPE,
-		PROFILE_RECORD_ID:           PROFILE_RECORD_ID_TYPE,
-		`value`:                     columnType,
-	}
+	//Build the column definitions
+	//This is manual due to it being a dynamic table
+	columnDefinitions := []db.DBColumnDefinition{}
+	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+		ColumnName: TABLE_CUSTOM_COLUMN_NAME_ID,
+		ColumnType: reflect.TypeOf(0),
+	})
+	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+		ColumnName: PROFILE_RECORD_ID,
+		ColumnType: reflect.TypeOf(0),
+	})
+
+	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+		ColumnName: `value`,
+		ColumnType: p.resolveDataType(profileValue, columnType.ScanType()),
+	})
+
+	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
 
 	//error here just means does not exist
 	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
 
 	if !tableExists {
-		err := p.dbConn.CreateTable(profileTable, db.ConvertMapToColumnDefinitions(columnsMap))
+		err := p.dbConn.CreateTable(profileTable, columnDefinitions)
 		if err != nil {
 			return err
 		}
@@ -157,6 +119,8 @@ func (p *ProfileStore) StoreCustomColumnProfileData(columnNamesID int, columnTyp
 		PROFILE_RECORD_ID:           profileID,
 		`value`:                     profileValue,
 	}
+
+	columnData = p.handleColumnDataNamingConvention(columnData)
 
 	//At this point the table and columns exist, so insert data
 	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
@@ -169,32 +133,45 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 	profileTable := p.getColumnProfileTableName(columnType)
 
-	columnsMap := map[string]string{
-		TABLE_COLUMN_NAME_ID: TABLE_COLUMN_NAME_ID_TYPE,
-		PROFILE_RECORD_ID:    PROFILE_RECORD_ID_TYPE,
-	}
+	//Build out the profile table by reflecting on the types we get
+	columnDefinitions := []db.DBColumnDefinition{}
+	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+		ColumnName: TABLE_COLUMN_NAME_ID,
+		ColumnType: reflect.TypeOf(0),
+	})
+	columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+		ColumnName: PROFILE_RECORD_ID,
+		ColumnType: reflect.TypeOf(0),
+	})
 	for _, data := range profileResults {
-		columnsMap[data.name] = data.dataType
+		columnDefinitions = append(columnDefinitions, db.DBColumnDefinition{
+			ColumnName: data.name,
+			ColumnType: p.resolveDataType(data.data, data.scanType),
+		})
 	}
+
+	//Convert casing if we need to
+	columnDefinitions = p.handleDBColumnDefinitionArrNamingConvention(columnDefinitions)
 
 	//error here just means does not exist
 	tableExists, _ := p.dbConn.DoesTableExist(profileTable)
 
 	if !tableExists {
-		err := p.dbConn.CreateTable(profileTable, db.ConvertMapToColumnDefinitions(columnsMap))
+		err := p.dbConn.CreateTable(profileTable, columnDefinitions)
 		if err != nil {
 			return err
 		}
 	} else {
 		//Table exists so just make sure each column exists
 		for _, data := range profileResults {
-			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, data.name)
+			columnName := p.handleNamingConvention(data.name)
+			columnExists, _ := p.dbConn.DoesTableColumnExist(profileTable, columnName)
 
 			//if column does not exist then create it
 			if !columnExists {
 				err := p.dbConn.AddTableColumn(profileTable, db.DBColumnDefinition{
-					ColumnName: data.name,
-					ColumnType: data.dataType,
+					ColumnName: columnName,
+					ColumnType: p.resolveDataType(data.data, data.scanType),
 				})
 				if err != nil {
 					return err
@@ -211,6 +188,8 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 		columnData[data.name] = data.data
 	}
 
+	columnData = p.handleColumnDataNamingConvention(columnData)
+
 	//At this point the table and columns exist, so insert data
 	p.dbConn.InsertRowAndReturnID(profileTable, columnData)
 
@@ -219,51 +198,83 @@ func (p *ProfileStore) StoreColumnProfileData(columnNamesID int, columnType stri
 
 //Creates a new profile entry and returns the profile id
 func (p *ProfileStore) NewProfile() (int, error) {
-	return p.getOrInsertTableRowID(PROFILE_RECORDS, map[string]interface{}{
-		"profile_date": time.Now(),
+	return p.getOrInsertTableRowIDFromStruct(ProfileRecord{
+		ProfileDate: time.Now(),
 	})
 }
 
 func (p *ProfileStore) RegisterTableColumn(tableNameID int, columnTypeID int, columnName string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_COLUMN_NAMES, map[string]interface{}{
-		"table_name_id":        tableNameID,
-		"table_column_name":    columnName,
-		"table_column_type_id": columnTypeID,
+	return p.getOrInsertTableRowIDFromStruct(TableColumnName{
+		TableNameID: tableNameID,
+		TableColumnName: columnName,
+		TableColumnTypeID: columnTypeID,
 	})
 }
 
 func (p *ProfileStore) RegisterTableCustomColumn(tableNameID int, columnTypeID int, columnName string, columnDefinition string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_CUSTOM_COLUMN_NAMES, map[string]interface{}{
-		"table_name_id":                  tableNameID,
-		"table_column_name":              columnName,
-		"table_column_type_id":           columnTypeID,
-		"table_custom_column_definition": columnDefinition,
+	return p.getOrInsertTableRowIDFromStruct(TableCustomColumnName{
+		TableNameID: tableNameID,
+		TableColumnName: columnName,
+		TableColumnTypeID: columnTypeID,
+		CustomColumnDefinition: columnDefinition,
 	})
 }
 
 func (p *ProfileStore) RegisterTable(tableName string) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_NAMES, map[string]interface{}{
-		"table_name": tableName,
+	return p.getOrInsertTableRowIDFromStruct(TableName{
+		TableName: tableName,
 	})
 }
 
 func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	return p.getOrInsertTableRowID(TABLE_COLUMN_TYPES, map[string]interface{}{
-		"table_column_type": columnDataType,
+	return p.getOrInsertTableRowIDFromStruct(TableColumnType{
+		TableColumnType: columnDataType,
 	})
 }
 
 func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, profileID int) (int, error) {
-	return p.getOrInsertTableRowID(TABLE_PROFILES, map[string]interface{}{
-		"table_name_id":     tableNameID,
-		"table_row_count":   rowCount,
-		"profile_record_id": profileID,
+	return p.getOrInsertTableRowIDFromStruct(TableProfile{
+		TableNameID: tableNameID,
+		TableRowCount: rowCount,
+		ProfileRecordID: profileID,
 	})
 }
 
+//Converts the struct to the params needed for getOrInsertTableRowID
+//uses tag data, excludes primary key field
+func (p *ProfileStore) getOrInsertTableRowIDFromStruct(tableStruct interface{}) (int, error) {
+	tableName, err := p.getTableNameFromStruct(tableStruct)
+	if err != nil{
+		return 0, err
+	}
+
+	columnDataMap := map[string]interface{}{}
+
+	fieldValues := reflect.ValueOf(tableStruct)	//for value references below
+	fields := reflect.TypeOf(tableStruct)
+	for i := 0; i < fields.NumField(); i++ {
+		field := fields.Field(i)
+		columnName, hasColumnName := field.Tag.Lookup(`db`)
+		if hasColumnName {
+			primaryKey, hasPrimaryKey := field.Tag.Lookup(`primaryKey`)
+			if hasPrimaryKey && primaryKey == `true`{
+				continue	//exclude primary key
+			} else {
+				columnDataMap[p.handleNamingConvention(columnName)] = fieldValues.Field(i).Interface()
+			}		
+		}
+	}
+
+	return p.getOrInsertTableRowID(tableName, columnDataMap)
+}
+
 func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string]interface{}) (int, error) {
+	//fix naming conventions
+	tableName = p.handleNamingConvention(tableName)
+	values = p.handleColumnDataNamingConvention(values)
+
 	rows, err := p.dbConn.GetRowsSelectWhere(tableName, []string{`id`}, values)
 	if err != nil {
 		return 0, err
@@ -282,15 +293,109 @@ func (p *ProfileStore) getOrInsertTableRowID(tableName string, values map[string
 }
 
 func (p *ProfileStore) getColumnProfileTableName(columnDataType string) string {
-	return fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+	name := fmt.Sprintf(`%s%s`, TABLE_COLUMN_PROFILE_PREFIX, columnDataType)
+	return p.handleNamingConvention(name)
 }
 
 func (p *ProfileStore) getCustomColumnProfileTableName(columnDataType string) string {
-	return fmt.Sprintf(`%s%s`, TABLE_CUSTOM_COLUMN_PROFILE_PREFIX, columnDataType)
+	name := fmt.Sprintf(`%s%s`, TABLE_CUSTOM_COLUMN_PROFILE_PREFIX, columnDataType)
+	return p.handleNamingConvention(name)
 }
 
-type ColumnProfileData struct {
-	data     interface{}
-	name     string
-	dataType string
+//Creates a table for the profile store table struct if not exists
+func (p *ProfileStore) createTableForProfileStoreTableStruct(tableStruct interface{}) error {
+	tableName, err := p.getTableNameFromStruct(tableStruct)
+	if err != nil{
+		return err
+	}
+
+	definitions, err := p.getColumnDataFromStructExcludePrimaryKey(tableStruct)
+	if err != nil {
+		return err
+	}
+
+	return p.dbConn.CreateTableIfNotExists(tableName, definitions)
+}
+
+//Takes a struct and looks for a table tag on a field
+//returns the string of the tag or error if none found
+func (p *ProfileStore) getTableNameFromStruct(tableStruct interface{}) (string, error){
+	fields := reflect.TypeOf(tableStruct)
+	for i := 0; i < fields.NumField(); i++ {
+		field := fields.Field(i)
+		tableName, ok := field.Tag.Lookup(`table`)
+		if ok {
+			return p.handleNamingConvention(tableName), nil			
+		}
+	}
+	return ``, fmt.Errorf(`no table tag found on struct %v`, tableStruct)
+}
+
+//Returns array of db column definitions using the db and primaryKey tags.
+//Excludes the primary key from the column definitions
+func (p *ProfileStore) getColumnDataFromStructExcludePrimaryKey(tableStruct interface{}) ([]db.DBColumnDefinition, error){
+	definitions := []db.DBColumnDefinition{}
+
+	fields := reflect.TypeOf(tableStruct)
+	for i := 0; i < fields.NumField(); i++ {
+		field := fields.Field(i)
+		columnName, hasColumnName := field.Tag.Lookup(`db`)
+		if hasColumnName {
+			primaryKey, hasPrimaryKey := field.Tag.Lookup(`primaryKey`)
+			if hasPrimaryKey && primaryKey == `true`{
+				continue	//exclude primary key
+			} else {
+				definitions = append(definitions, db.DBColumnDefinition{
+					ColumnName: p.handleNamingConvention(columnName),
+					ColumnType: field.Type,
+				})
+			}		
+		}
+	}
+
+	return definitions, nil
+}
+
+func (p *ProfileStore) handleColumnDataNamingConvention(data map[string]interface{}) map[string]interface{} {
+	fixedData := map[string]interface{}{}
+	for key := range data {
+		fixedData[p.handleNamingConvention(key)] = data[key]
+	}
+	return fixedData
+}
+
+func (p *ProfileStore) handleDBColumnDefinitionArrNamingConvention(definitions []db.DBColumnDefinition) []db.DBColumnDefinition {
+	for idx := range definitions {
+		definitions[idx].ColumnName = p.handleNamingConvention(definitions[idx].ColumnName)
+	}
+	return definitions
+}
+
+func (p *ProfileStore) handleNamingConvention(name string) string {
+	if p.UsePascalCase {
+		return p.convertSnakeCaseToPascalCase(name)
+	}
+	return name
+}
+
+func (p *ProfileStore) convertSnakeCaseToPascalCase(name string) string {
+	if !strings.ContainsAny(`_`, name) {
+		return name
+	}
+
+	name = strings.ReplaceAll(name, `_`, ` `)
+	name = strings.Title(name)
+	name = strings.ReplaceAll(name, ` `, ``)
+
+	return name
+}
+
+//Tries to resolve the data type from the provided interface
+//If the data is nil, then fall back to the db scan type provided
+func (p *ProfileStore) resolveDataType(data interface{}, dbScanType reflect.Type) reflect.Type {
+	if data != nil {
+		return reflect.TypeOf(data)
+	}
+
+	return dbScanType
 }

@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+	"reflect"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -37,7 +39,7 @@ func (p *PostgresConn) GetSelectSingle(tableName string, selects []string) (*sql
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return conn.Query(qry)
 }
 
@@ -47,7 +49,7 @@ func (p *PostgresConn) GetSelectAllColumnsSingle(tableName string) (*sql.Rows, e
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return conn.Query(qry)
 }
 
@@ -77,7 +79,11 @@ func (p *PostgresConn) CreateTable(tableName string, columns []DBColumnDefinitio
 
 	columnItems := []string{}
 	for _, col := range columns {
-		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, col.ColumnType))
+		columnSQLType, err := p.convertTypeToSQLType(col.ColumnType)
+		if err != nil{
+			return err
+		}
+		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, columnSQLType))
 	}
 
 	columnQuery := strings.Join(columnItems, `,`)
@@ -106,11 +112,11 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 		return false, err
 	}
 
-	query := fmt.Sprintf(`SELECT %s FROM %s LIMIT 1`, columnName, tableName)
+	query := fmt.Sprintf(`select %s from %s limit 1`, columnName, tableName)
 
 	row := conn.QueryRow(query)
 
-	var name string
+	var name interface{}
 	err = row.Scan(&name)
 	if err != nil {
 		return false, err
@@ -125,10 +131,14 @@ func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinitio
 		return err
 	}
 
+	dataType,err := p.convertTypeToSQLType(column.ColumnType)
+	if err != nil{
+		return err
+	}
+
 	query := `alter table %s add column %s %s;`
-
-	query = fmt.Sprintf(query, tableName, column.ColumnName, column.ColumnType)
-
+	query = fmt.Sprintf(query, tableName, column.ColumnName, dataType)
+	
 	_, err = conn.Exec(query)
 	return err
 }
@@ -195,7 +205,7 @@ func (p *PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.R
 	if err != nil {
 		panic(err)
 	}
-
+	
 	return conn.Query(query)
 }
 
@@ -223,7 +233,7 @@ func (p *PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wh
 	if err != nil {
 		panic(err)
 	}
-
+	
 	return conn.Query(query, whereValues...)
 }
 
@@ -264,7 +274,7 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	}
 
 	row := conn.QueryRow(
-		`SELECT datname FROM pg_catalog.pg_database WHERE datname = $1;`,
+		`select datname from pg_catalog.pg_database where datname = $1;`,
 		dbName,
 	)
 
@@ -275,4 +285,32 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	}
 
 	return name == dbName, nil
+}
+
+func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, error){
+	if dataType == nil{
+		return ``, fmt.Errorf(`data type is a nil pointer, this is likely due to a null value which cannot be interpreted to a data type`)
+	}
+	switch dataType.Kind(){
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return `int`, nil
+	case reflect.String:
+		return `text`, nil
+	case reflect.Struct:
+		if isSameStructType(dataType, time.Time{}) {
+			return `timestamptz`, nil
+		}
+	case reflect.Slice:
+		sliceType := dataType.Elem().Kind()
+		if sliceType == reflect.Uint8 { 
+			return `numeric`, nil
+		}	
+	default:
+		fmt.Printf("\nunable to find a sql type for %v", dataType.Kind())
+	}
+	return ``, fmt.Errorf(`no defined sql type for reflect type of %v`, dataType)
+}
+
+func isSameStructType(dataType reflect.Type, compareInterface interface{}) bool{
+	return dataType == reflect.TypeOf(compareInterface)
 }

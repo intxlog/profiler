@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"time"
 
 	"bitbucket.org/intxlog/profiler/db"
@@ -11,36 +13,55 @@ import (
 )
 
 func main() {
-	test()
+	run()
 }
 
-func test() {
-	fmt.Printf("Starting profile...\n")
-	start := time.Now()
-	connStr := os.Args[1]
-	t := db.NewPostgresConn(connStr)
+func run() {
+	log.Println("Preparing profiler")
+	targetConnDBType := flag.String("targetDBType", db.DB_CONN_POSTGRES, "Target database type")
+	targetConnString := flag.String("targetDB", "", "Target database connection string")
 
-	pConnStr := os.Args[2]
-	pConn := db.NewPostgresConn(pConnStr)
+	profileConnDBType := flag.String("profileDBType", db.DB_CONN_POSTGRES, "Profile database type")
+	profileConnString := flag.String("profileDB", "", "Profile store database connection string")
 
-	p := profiler.NewProfiler(t, pConn)
+	profileDefinitionPath := flag.String("profileDefinition", "", "Path to profile definition JSON file")
 
-	profile := profiler.ProfileDefinition{
-		FullProfileTables: []string{"loads"},
-		CustomProfileTables: []profiler.TableDefinition{
-			profiler.TableDefinition{
-				TableName: "loads",
-				Columns:   []string{"*"},
-				CustomColumns: []profiler.CustomColumnDefition{
-					profiler.CustomColumnDefition{
-						ColumnName:       "tripmilesmin",
-						ColumnDefinition: "min(tripmiles)",
-					},
-				},
-			},
-		},
+	usePascalCase := flag.Bool("usePascalCase", false, "Use pascal case for table and column naming in profile database")
+
+	flag.Parse()
+
+	targetCon, err := db.GetDBConnByType(*targetConnDBType, *targetConnString)
+	if err != nil {
+		log.Fatal(fmt.Errorf(`error getting target database connection: %v`, err))
 	}
-	err := p.RunProfile(profile)
+
+	profileCon, err := db.GetDBConnByType(*profileConnDBType, *profileConnString)
+	if err != nil {
+		log.Fatal(fmt.Errorf(`error getting profile database connection: %v`, err))
+	}
+
+	options := profiler.ProfilerOptions{
+		UsePascalCase: *usePascalCase,
+	}
+
+	//Read in the profile definition file
+	fileData, err := ioutil.ReadFile(*profileDefinitionPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var profile profiler.ProfileDefinition
+	err = json.Unmarshal(fileData, &profile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Starting profile...\n")
+	start := time.Now()
+
+	p := profiler.NewProfilerWithOptions(targetCon, profileCon, options)
+
+	err = p.RunProfile(profile)
 
 	if err != nil {
 		log.Fatal(err)
@@ -49,5 +70,5 @@ func test() {
 	}
 
 	end := time.Now()
-	fmt.Printf("Finished... time taken: %v", end.Sub(start))
+	log.Printf("Finished... time taken: %v\n", end.Sub(start))
 }

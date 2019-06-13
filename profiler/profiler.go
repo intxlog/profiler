@@ -1,6 +1,7 @@
 package profiler
 
 import (
+	
 	"database/sql"
 	"fmt"
 	"strings"
@@ -14,13 +15,32 @@ type Profiler struct {
 	profileStore  *ProfileStore
 }
 
-//Returns a new Profiler
+type ProfilerOptions struct{
+	UsePascalCase bool
+}
+
+// NewProfiler returns a new profiler with default options for the specified databases
+// targetDBConn is the database to be profiled
+// profileDBConn is the database to store the profile data
 func NewProfiler(targetDBConn db.DBConn, profileDBConn db.DBConn) *Profiler {
-	return &Profiler{
+	return NewProfilerWithOptions(targetDBConn, profileDBConn, ProfilerOptions{})
+}
+
+// NewProfilerWithOptions returns a new profiler with the specified options
+func NewProfilerWithOptions(targetDBConn db.DBConn, profileDBConn db.DBConn, options ProfilerOptions) *Profiler {
+	profiler := &Profiler{
 		targetDBConn:  targetDBConn,
 		profileDBConn: profileDBConn,
 		profileStore:  NewProfileStore(profileDBConn),
 	}
+
+	profiler.profileStore.UsePascalCase = options.UsePascalCase
+
+	if err := profiler.profileStore.ScaffoldProfileStore(); err != nil {
+		panic(err)
+	}
+
+	return profiler
 }
 
 //Run profiles on all provided tables and store
@@ -131,16 +151,22 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 
 	//Setup profile value pointers so we can scan into the array
 	//we make the assumption that results return in the order of selects here
-	profileValues := make([]interface{}, len(columnsData))
 	profileValuePointers := make([]interface{}, len(columnsData))
-	for idx := range profileValues {
-		profileValuePointers[idx] = &profileValues[idx]
+	for idx := range profileValuePointers {
+		profileValuePointers[idx] = new(interface{})
 	}
 
 	if rows.Next() {
 		rows.Scan(profileValuePointers...)
 	} else {
 		return fmt.Errorf(`failed to get results from query`)
+	}
+
+	//Now that we tricked it to accepting interface pointers, cast back to pointers and get vals
+	//assigning to new array just for readability, could go to the same one though
+	profileValues := []interface{}{}
+	for idx := range profileValuePointers {
+		profileValues = append(profileValues, *(profileValuePointers[idx].(*interface{})))
 	}
 
 	for idx, columnData := range columnsData {
@@ -162,8 +188,7 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 		if err != nil {
 			return err
 		}
-
-		err = p.profileStore.StoreCustomColumnProfileData(columnNamesID, columnData.DatabaseTypeName(), profileID, profileValuePointers[idx])
+		err = p.profileStore.StoreCustomColumnProfileData(columnNamesID, columnData, profileID, profileValues[idx])
 		if err != nil {
 			return err
 		}
@@ -290,7 +315,7 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 	//Setup profile value pointers so we can scan into the array
 	profileValues := make([]interface{}, len(profileColumnData))
 	profileValuePointers := make([]interface{}, len(profileColumnData))
-	for idx, _ := range profileValues {
+	for idx := range profileValues {
 		profileValuePointers[idx] = &profileValues[idx]
 	}
 
@@ -304,7 +329,7 @@ func (p *Profiler) handleProfileTableColumn(tableName TableName, profileID int, 
 		profileResults = append(profileResults, ColumnProfileData{
 			data:     val,
 			name:     profileColumnData[idx].Name(),
-			dataType: profileColumnData[idx].DatabaseTypeName(),
+			scanType: profileColumnData[idx].ScanType(),
 		})
 	}
 
