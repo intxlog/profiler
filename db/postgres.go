@@ -322,7 +322,7 @@ func (p *PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	return count, err
 }
 
-func (p *PostgresConn) GetTableSize(tableName string) (int, error) {
+func (p *PostgresConn) GetTableSize(tableName string) (int64, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return 0, err
@@ -339,7 +339,7 @@ func (p *PostgresConn) GetTableSize(tableName string) (int, error) {
 	defer rows.Close()
 
 	rows.Next()
-	var size int
+	var size int64
 	err = rows.Scan(&size)
 
 	return size, err
@@ -370,8 +370,10 @@ func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, erro
 		return ``, fmt.Errorf(`data type is a nil pointer, this is likely due to a null value which cannot be interpreted to a data type`)
 	}
 	switch dataType.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
 		return `int`, nil
+	case reflect.Int64:
+		return `bigint`, nil
 	case reflect.String:
 		return `text`, nil
 	case reflect.Struct:

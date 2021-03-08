@@ -233,7 +233,7 @@ func (p *ProfileStore) RegisterTableColumnType(columnDataType string) (int, erro
 	})
 }
 
-func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, tableSize int, profileID int) (int, error) {
+func (p *ProfileStore) RecordTableProfile(tableNameID int, rowCount int, tableSize int64, profileID int) (int, error) {
 	return p.getOrInsertTableRowIDFromStruct(TableProfile{
 		TableNameID:     tableNameID,
 		TableRowCount:   rowCount,

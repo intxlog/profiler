@@ -51,7 +51,7 @@ type DBConn interface {
 	GetTableRowCount(tableName string) (int, error)
 
 	//Get the data size of the table
-	GetTableSize(tableName string) (int, error)
+	GetTableSize(tableName string) (int64, error)
 }
 
 type DBColumnDefinition struct {
