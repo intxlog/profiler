@@ -1,9 +1,9 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
-	"database/sql"
 )
 
 //Connection type for postgres db
@@ -49,19 +49,21 @@ type DBConn interface {
 	GetRowsSelect(tableName string, selects []string) (*sql.Rows, error)
 
 	GetTableRowCount(tableName string) (int, error)
-}
 
+	//Get the data size of the table
+	GetTableSize(tableName string) (int, error)
+}
 
 type DBColumnDefinition struct {
 	ColumnName string
 	ColumnType reflect.Type
 }
 
-func GetDBConnByType(dbType string, dbConnString string) (DBConn, error){
+func GetDBConnByType(dbType string, dbConnString string) (DBConn, error) {
 	if dbConnString == "" {
 		return nil, fmt.Errorf(`database connection string is required`)
 	}
-	switch dbType{
+	switch dbType {
 	case DB_CONN_POSTGRES:
 		return NewPostgresConn(dbConnString), nil
 	default:

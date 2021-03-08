@@ -1,11 +1,11 @@
 package db
 
 import (
-	"time"
-	"reflect"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -39,7 +39,7 @@ func (p *PostgresConn) GetSelectSingle(tableName string, selects []string) (*sql
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return conn.Query(qry)
 }
 
@@ -49,7 +49,7 @@ func (p *PostgresConn) GetSelectAllColumnsSingle(tableName string) (*sql.Rows, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return conn.Query(qry)
 }
 
@@ -80,7 +80,7 @@ func (p *PostgresConn) CreateTable(tableName string, columns []DBColumnDefinitio
 	columnItems := []string{}
 	for _, col := range columns {
 		columnSQLType, err := p.convertTypeToSQLType(col.ColumnType)
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		columnItems = append(columnItems, fmt.Sprintf(`%s %s`, col.ColumnName, columnSQLType))
@@ -101,7 +101,7 @@ func (p *PostgresConn) CreateTable(tableName string, columns []DBColumnDefinitio
 
 func (p *PostgresConn) CreateTableIfNotExists(tableName string, columns []DBColumnDefinition) error {
 	if ok, err := p.DoesTableExist(tableName); ok && err == nil {
-		return nil
+		return p.createColumnsIfNotExists(tableName, columns)
 	}
 	return p.CreateTable(tableName, columns)
 }
@@ -126,19 +126,32 @@ func (p *PostgresConn) DoesTableColumnExist(tableName string, columnName string)
 }
 
 func (p *PostgresConn) AddTableColumn(tableName string, column DBColumnDefinition) error {
+	return p.AddTableColumns(tableName, []DBColumnDefinition{column})
+}
+
+func (p *PostgresConn) AddTableColumns(tableName string, columns []DBColumnDefinition) error {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return err
 	}
 
-	dataType,err := p.convertTypeToSQLType(column.ColumnType)
-	if err != nil{
-		return err
+	addTableQuery := `add column %s %s`
+	addTableItems := []string{}
+
+	// Build the addTableItems slice with
+	// all of the new columns
+	for _, columnDef := range columns {
+		dataType, err := p.convertTypeToSQLType(columnDef.ColumnType)
+		if err != nil {
+			return err
+		}
+		addTableItems = append(addTableItems, fmt.Sprintf(addTableQuery, columnDef.ColumnName, dataType))
 	}
 
-	query := `alter table %s add column %s %s;`
-	query = fmt.Sprintf(query, tableName, column.ColumnName, dataType)
-	
+	query := `alter table %s %s;`
+	query = fmt.Sprintf(query, tableName, strings.Join(addTableItems, ", "))
+	fmt.Println(query)
+
 	_, err = conn.Exec(query)
 	return err
 }
@@ -205,7 +218,7 @@ func (p *PostgresConn) GetRowsSelect(tableName string, selects []string) (*sql.R
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return conn.Query(query)
 }
 
@@ -233,8 +246,50 @@ func (p *PostgresConn) GetRowsSelectWhere(tableName string, selects []string, wh
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return conn.Query(query, whereValues...)
+}
+
+// Returns a list of column names for this table
+func (p *PostgresConn) getExistingColumnNames(tableName string) ([]string, error) {
+	rows, err := p.GetSelectAllColumnsSingle(tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return rows.Columns()
+}
+
+func (p *PostgresConn) createColumnsIfNotExists(tableName string, columns []DBColumnDefinition) error {
+	//Columns we need to add
+	columnsToAdd := []DBColumnDefinition{}
+
+	existingColumns, err := p.getExistingColumnNames(tableName)
+	if err != nil {
+		return err
+	}
+
+	for _, columnDefinition := range columns {
+		exists := false
+		//Check our existing columns list to see if
+		//this definition exists already (we are not doing a type check)
+		for _, existingColumn := range existingColumns {
+			if existingColumn == columnDefinition.ColumnName {
+				exists = true
+			}
+		}
+		// If this column does not exist in profiler db
+		// then add it to our list to be added
+		if !exists {
+			columnsToAdd = append(columnsToAdd, columnDefinition)
+		}
+	}
+
+	if len(columnsToAdd) > 0 {
+		return p.AddTableColumns(tableName, columnsToAdd)
+	}
+	return nil
 }
 
 func (p *PostgresConn) getConcatSelects(selects []string) string {
@@ -267,6 +322,29 @@ func (p *PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	return count, err
 }
 
+func (p *PostgresConn) GetTableSize(tableName string) (int, error) {
+	conn, err := p.GetConnection()
+	if err != nil {
+		return 0, err
+	}
+
+	qry := fmt.Sprintf(`select pg_relation_size('%s')`, tableName)
+
+	rows, err := conn.Query(qry)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rows.Close()
+
+	rows.Next()
+	var size int
+	err = rows.Scan(&size)
+
+	return size, err
+}
+
 func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {
@@ -287,11 +365,11 @@ func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	return name == dbName, nil
 }
 
-func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, error){
-	if dataType == nil{
+func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, error) {
+	if dataType == nil {
 		return ``, fmt.Errorf(`data type is a nil pointer, this is likely due to a null value which cannot be interpreted to a data type`)
 	}
-	switch dataType.Kind(){
+	switch dataType.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return `int`, nil
 	case reflect.String:
@@ -302,15 +380,15 @@ func (p *PostgresConn) convertTypeToSQLType(dataType reflect.Type) (string, erro
 		}
 	case reflect.Slice:
 		sliceType := dataType.Elem().Kind()
-		if sliceType == reflect.Uint8 { 
+		if sliceType == reflect.Uint8 {
 			return `numeric`, nil
-		}	
+		}
 	default:
 		fmt.Printf("\nunable to find a sql type for %v", dataType.Kind())
 	}
 	return ``, fmt.Errorf(`no defined sql type for reflect type of %v`, dataType)
 }
 
-func isSameStructType(dataType reflect.Type, compareInterface interface{}) bool{
+func isSameStructType(dataType reflect.Type, compareInterface interface{}) bool {
 	return dataType == reflect.TypeOf(compareInterface)
 }

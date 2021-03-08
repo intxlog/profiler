@@ -1,7 +1,6 @@
 package profiler
 
 import (
-	
 	"database/sql"
 	"fmt"
 	"strings"
@@ -15,7 +14,7 @@ type Profiler struct {
 	profileStore  *ProfileStore
 }
 
-type ProfilerOptions struct{
+type ProfilerOptions struct {
 	UsePascalCase bool
 }
 
@@ -254,7 +253,7 @@ func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, 
 		TableName: tableName,
 	}
 
-	err = p.recordTableRowCount(tableNameObj, profileID)
+	err = p.recordTableProfileMetadata(tableNameObj, profileID)
 	if err != nil {
 		return err
 	}
@@ -262,13 +261,18 @@ func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, 
 	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
 }
 
-func (p *Profiler) recordTableRowCount(tableName TableName, profileID int) error {
+func (p *Profiler) recordTableProfileMetadata(tableName TableName, profileID int) error {
 	rowCount, err := p.targetDBConn.GetTableRowCount(tableName.TableName)
 	if err != nil {
 		return err
 	}
 
-	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, profileID)
+	tableSize, err := p.targetDBConn.GetTableSize(tableName.TableName)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, tableSize, profileID)
 
 	return err
 }
