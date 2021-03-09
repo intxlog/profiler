@@ -272,12 +272,12 @@ func (p *Profiler) recordTableProfileMetadata(tableName TableName, profileID int
 		return err
 	}
 
-	tableSize, err := p.targetDBConn.GetTableSize(tableName.TableName)
+	tableSize, indexesSize, err := p.targetDBConn.GetTableAndIndexesSize(tableName.TableName)
 	if err != nil {
 		return err
 	}
 
-	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, tableSize, profileID)
+	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, tableSize, indexesSize, profileID)
 
 	return err
 }

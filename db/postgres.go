@@ -322,50 +322,25 @@ func (p *PostgresConn) GetTableRowCount(tableName string) (int, error) {
 	return count, err
 }
 
-func (p *PostgresConn) GetTableSize(tableName string) (int64, error) {
+func (p *PostgresConn) GetTableAndIndexesSize(tableName string) (tableSize int64, indexesSize int64, err error) {
 	conn, err := p.GetConnection()
 	if err != nil {
-		return 0, err
+		return
 	}
 
-	qry := fmt.Sprintf(`select pg_relation_size('%s')`, tableName)
+	qry := fmt.Sprintf(`select pg_relation_size('%s'), pg_indexes_size('%s')`, tableName, tableName)
 
 	rows, err := conn.Query(qry)
-
-	if err != nil {
-		return 0, err
-	}
-
 	defer rows.Close()
 
-	rows.Next()
-	var size int64
-	err = rows.Scan(&size)
-
-	return size, err
-}
-
-func (p *PostgresConn) GetIndexesSize(tableName string) (int64, error) {
-	conn, err := p.GetConnection()
 	if err != nil {
-		return 0, err
+		return
 	}
-
-	qry := fmt.Sprintf(`select pg_indexes_size('%s')`, tableName)
-
-	rows, err := conn.Query(qry)
-
-	if err != nil {
-		return 0, err
-	}
-
-	defer rows.Close()
-
+	
 	rows.Next()
-	var size int64
-	err = rows.Scan(&size)
+	err = rows.Scan(&tableSize, &indexesSize)
 
-	return size, err
+	return
 }
 
 func (p *PostgresConn) dbExists(dbName string) (bool, error) {
