@@ -20,10 +20,12 @@ type TableName struct {
 }
 
 type TableProfile struct {
-	ID            int `db:"id" table:"table_profiles" primaryKey:"true"`
-	TableNameID   int `db:"table_name_id"`
-	TableRowCount int `db:"table_row_count"`
-	ProfileRecordID int `db:"profile_record_id"`
+	ID              int   `db:"id" table:"table_profiles" primaryKey:"true"`
+	TableNameID     int   `db:"table_name_id"`
+	TableRowCount   int   `db:"table_row_count"`
+	TableSize       int64 `db:"table_size"`
+	IndexesSize		int64 `db:"indexes_size"`
+	ProfileRecordID int   `db:"profile_record_id"`
 }
 
 type ProfileRecord struct {

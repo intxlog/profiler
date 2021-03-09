@@ -1,12 +1,11 @@
 package profiler
 
 import (
-	
 	"database/sql"
 	"fmt"
 	"strings"
 
-	"bitbucket.org/intxlog/profiler/db"
+	"github.com/intxlog/profiler/db"
 )
 
 type Profiler struct {
@@ -15,7 +14,7 @@ type Profiler struct {
 	profileStore  *ProfileStore
 }
 
-type ProfilerOptions struct{
+type ProfilerOptions struct {
 	UsePascalCase bool
 }
 
@@ -157,9 +156,14 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 	}
 
 	if rows.Next() {
-		rows.Scan(profileValuePointers...)
+		err = rows.Scan(profileValuePointers...)
+		if err != nil {
+			return err
+		}
 	} else {
-		return fmt.Errorf(`failed to get results from query`)
+		fmt.Println(fmt.Sprintf(`encountered no results when running profile on %s ...skipping`, tableDef.TableName))
+		// return fmt.Errorf(`failed to get results from query`)
+		return nil
 	}
 
 	//Now that we tricked it to accepting interface pointers, cast back to pointers and get vals
@@ -254,7 +258,7 @@ func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, 
 		TableName: tableName,
 	}
 
-	err = p.recordTableRowCount(tableNameObj, profileID)
+	err = p.recordTableProfileMetadata(tableNameObj, profileID)
 	if err != nil {
 		return err
 	}
@@ -262,13 +266,18 @@ func (p *Profiler) profileTableWithColumnsData(tableName string, profileID int, 
 	return p.handleProfileTableColumns(tableNameObj, profileID, columnsData)
 }
 
-func (p *Profiler) recordTableRowCount(tableName TableName, profileID int) error {
+func (p *Profiler) recordTableProfileMetadata(tableName TableName, profileID int) error {
 	rowCount, err := p.targetDBConn.GetTableRowCount(tableName.TableName)
 	if err != nil {
 		return err
 	}
 
-	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, profileID)
+	tableSize, indexesSize, err := p.targetDBConn.GetTableAndIndexesSize(tableName.TableName)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.profileStore.RecordTableProfile(tableName.ID, rowCount, tableSize, indexesSize, profileID)
 
 	return err
 }
