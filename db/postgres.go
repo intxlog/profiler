@@ -345,6 +345,29 @@ func (p *PostgresConn) GetTableSize(tableName string) (int64, error) {
 	return size, err
 }
 
+func (p *PostgresConn) GetIndexesSize(tableName string) (int64, error) {
+	conn, err := p.GetConnection()
+	if err != nil {
+		return 0, err
+	}
+
+	qry := fmt.Sprintf(`select pg_indexes_size('%s')`, tableName)
+
+	rows, err := conn.Query(qry)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rows.Close()
+
+	rows.Next()
+	var size int64
+	err = rows.Scan(&size)
+
+	return size, err
+}
+
 func (p *PostgresConn) dbExists(dbName string) (bool, error) {
 	conn, err := p.GetConnection()
 	if err != nil {

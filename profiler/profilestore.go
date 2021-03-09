@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/intxlog/profiler/db"
+	"github.com/intxlog/profiler/db"
 )
 
 //ProfileStore is used to store all the profile data that the profiler generates.

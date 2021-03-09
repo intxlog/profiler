@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"bitbucket.org/intxlog/profiler/db"
+	"github.com/intxlog/profiler/db"
 )
 
 type Profiler struct {
@@ -156,9 +156,14 @@ func (p *Profiler) profileTableCustomColumns(tableDef TableDefinition, profileID
 	}
 
 	if rows.Next() {
-		rows.Scan(profileValuePointers...)
+		err = rows.Scan(profileValuePointers...)
+		if err != nil {
+			return err
+		}
 	} else {
-		return fmt.Errorf(`failed to get results from query`)
+		fmt.Println(fmt.Sprintf(`encountered no results when running profile on %s ...skipping`, tableDef.TableName))
+		// return fmt.Errorf(`failed to get results from query`)
+		return nil
 	}
 
 	//Now that we tricked it to accepting interface pointers, cast back to pointers and get vals
